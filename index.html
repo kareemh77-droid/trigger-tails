@@ -1185,6 +1185,90 @@ function poseInject(sh, mat, sq) {
 function poseCompile(sh) { poseInject(sh, this, false); }
 function poseCompileSQ(sh) { poseInject(sh, this, true); }
 
+
+/* ---------- Arms: the animals hold their guns in their own paws (they have no skeleton, so these are separate little arms) ---------- */
+const ARM_K = MODEL_SIZE / 2;
+const ARM = {        // sh = shoulder [sideways, up, forward] in the animal's own space, r = how thick the arm is, col = fur colour
+  squirrel: { sh: [0.27, 0.80, 0.45], r: 0.07, col: 0xa0521f }, kitten: { sh: [0.28, 0.92, 0.50], r: 0.06, col: 0xb8aaa0 },
+  llama: { sh: [0.27, 1.55, 0.42], r: 0.08, col: 0xe8d9c0 }, moose: { sh: [0.35, 1.60, 0.45], r: 0.10, col: 0x6b4a2e },
+  brachio: { sh: [0.28, 1.15, 0.95], r: 0.11, col: 0x6f6a52 }, troll: { sh: [0.65, 2.00, 0.00], r: 0.14, col: 0x9a9460 },
+  samurai: { sh: [0.33, 2.20, 0.05], r: 0.09, col: 0x5a2a22 }, dragon: { sh: [0.45, 1.35, 0.85], r: 0.10, col: 0x3a3a8a },
+};
+// Where the two hands go on each gun, in the gun's own space: [the hand on the handle, the other hand]. null = one-handed (the free arm just hangs).
+const GRIP = [
+  [[-0.018, -0.075, 0.012], [0.02, -0.13, 0]],        // 0 pistol
+  [[-0.015, -0.1, 0.06], [0, -0.07, 0.26]],           // 1 uzi
+  [[0, -0.15, -0.02], [0, -0.17, 0.2]],               // 2 rocket launcher
+  [[0, 0, 0], null],                                  // 3 knife
+  [[0, 0, 0.02], [0, 0, -0.07]],                      // 4 katana
+  [[0, -0.1, -0.09], [0, -0.04, 0.17]],               // 5 crossbow
+  [[0, -0.07, 0], null],                              // 6 grenade
+  [[0, -0.1, 0.02], [0, -0.02, 0.3]],                 // 7 flamethrower
+  [[0, -0.11, -0.02], [0, -0.07, 0.17]],              // 8 freeze ray
+  [[0, -0.06, -0.03], [0, -0.07, 0.36]],              // 9 shotgun (the other hand works the pump)
+  [[0, -0.09, -0.05], [0, -0.08, 0.32]],              // 10 sniper
+  [[0, -0.1, -0.07], [0, -0.08, 0.05]],               // 11 minigun
+  [[0, -0.11, -0.02], [0, -0.07, 0.18]],              // 12 plasma rifle
+  [[0, 0, 0.06], [0, 0, 0.22]],                       // 13 sledgehammer
+  [[0, -0.05, 0], null],                              // 14 dynamite
+];
+const GRIP_TAG = { 0: 'mag', 1: 'mag', 8: 'cell', 9: 'pump', 10: 'mag', 11: 'mag', 12: 'cell' };         // the part the other hand follows
+const GRIP_MAG = { 0: [0, -0.09, 0.01], 1: [0, -0.13, 0.06], 8: [0.056, 0, 0.08], 10: [0, -0.065, 0.07], 11: [0, -0.115, -0.01], 12: [0, 0.068, -0.02] };   // where that part sits (the hand reaches for it while reloading)
+const ARM_UNIT = new THREE.CylinderGeometry(1, 1, 1, 10, 1).rotateX(Math.PI / 2).translate(0, 0, 0.5);     // a thin tube from 0 to 1 along z
+const ARM_BALL = new THREE.SphereGeometry(1, 10, 8);
+const darker = (c, k) => ((((c >> 16) & 255) * k | 0) << 16) | ((((c >> 8) & 255) * k | 0) << 8) | ((c & 255) * k | 0);
+function buildArms(id, rig, hold) {
+  const A = ARM[id], root = new THREE.Group();
+  const fur = new THREE.MeshLambertMaterial({ color: A.col }), paw = new THREE.MeshLambertMaterial({ color: darker(A.col, 0.78) });
+  const part = (geo, mat, shadow) => { const m = new THREE.Mesh(geo, mat); m.rotation.order = 'YXZ'; m.castShadow = shadow; m.frustumCulled = false; root.add(m); return m; };
+  const arm = [0, 1].map(() => ({ up: part(ARM_UNIT, fur, true), lo: part(ARM_UNIT, fur, true), sh: part(ARM_BALL, fur, false), el: part(ARM_BALL, fur, false), hand: part(ARM_BALL, paw, false) }));
+  root.visible = false; rig.add(root);
+  const sh = A.sh.map(v => v * ARM_K), d0 = Math.hypot(hold.x, hold.y - sh[1], hold.z - sh[2]);
+  return { root, arm, mats: [fur, paw], sh, r: A.r * ARM_K, d0 };
+}
+const armP = { x: 0, y: 0, z: 0 };
+function gunPoint(g, x, y, z, o) {          // a point in the gun's own space -> the animal's space (the gun is a child of the rig)
+  x *= g.scale.x; y *= g.scale.y; z *= g.scale.z;
+  const r = g.rotation; let c = Math.cos(r.z), s = Math.sin(r.z), t;
+  t = x * c - y * s; y = x * s + y * c; x = t;
+  c = Math.cos(r.y); s = Math.sin(r.y); t = x * c + z * s; z = -x * s + z * c; x = t;
+  c = Math.cos(r.x); s = Math.sin(r.x); t = y * c - z * s; z = y * s + z * c; y = t;
+  o.x = x + g.position.x; o.y = y + g.position.y; o.z = z + g.position.z; return o;
+}
+function armSeg(m, ax, ay, az, bx, by, bz, r) {
+  const dx = bx - ax, dy = by - ay, dz = bz - az, l = Math.hypot(dx, dy, dz) || 1e-4;
+  m.position.set(ax, ay, az); m.scale.set(r, r, l); m.rotation.set(-Math.asin(Math.max(-1, Math.min(1, dy / l))), Math.atan2(dx, dz), 0);
+}
+function placeArm(a, ax, ay, az, hx, hy, hz, r, p0) {       // shoulder -> bent elbow -> paw; the elbow always swings out the way p0 points
+  let dx = hx - ax, dy = hy - ay, dz = hz - az; const d = Math.hypot(dx, dy, dz) || 1e-4; dx /= d; dy /= d; dz /= d;
+  const dp = p0[0] * dx + p0[1] * dy + p0[2] * dz; let px = p0[0] - dx * dp, py = p0[1] - dy * dp, pz = p0[2] - dz * dp;
+  const k = d * 0.25 / (Math.hypot(px, py, pz) || 1); px *= k; py *= k; pz *= k;
+  const ex = ax + (hx - ax) / 2 + px, ey = ay + (hy - ay) / 2 + py, ez = az + (hz - az) / 2 + pz;
+  armSeg(a.up, ax, ay, az, ex, ey, ez, r); armSeg(a.lo, ex, ey, ez, hx, hy, hz, r * 0.9);
+  a.sh.position.set(ax, ay, az); a.sh.scale.setScalar(r * 1.15); a.el.position.set(ex, ey, ez); a.el.scale.setScalar(r * 0.98); a.hand.position.set(hx, hy, hz); a.hand.scale.setScalar(r * 1.5);
+}
+function updateArms(s) {
+  const A = s.arms, g = s.gunNode, G = GRIP[s.weapon];
+  if (!A) return;
+  if (!g || !G) { A.root.visible = false; return; }
+  A.root.visible = true;
+  const T = g.userData.T, P = armP;
+  for (let k = 0; k < 2; k++) {
+    const side = k === 0 ? -1 : 1, ax = side * A.sh[0], ay = A.sh[1], az = A.sh[2], gr = G[k];
+    let hx, hy, hz, pole;
+    if (gr) {
+      let px = gr[0], py = gr[1], pz = gr[2];
+      if (k === 1) {
+        const tg = T && T[GRIP_TAG[s.weapon]], mp = GRIP_MAG[s.weapon];
+        if (tg && mp) { const f = s.rlK; px += (mp[0] + tg.position.x - px) * f; py += (mp[1] + tg.position.y - py) * f; pz += (mp[2] + tg.position.z - pz) * f; }      // reaching for the magazine
+        else if (tg) { px += tg.position.x; py += tg.position.y; pz += tg.position.z; }                                                                                  // riding along with the pump
+      }
+      gunPoint(g, px, py, pz, P); hx = P.x; hy = P.y; hz = P.z; pole = [side * 0.8, -1, -0.15];
+    } else { hx = ax + side * 0.12 * A.d0; hy = ay - 0.85 * A.d0; hz = az + 0.12 * A.d0; pole = [side * 0.4, 0, -1]; }     // free arm: just hangs
+    placeArm(A.arm[k], ax, ay, az, hx, hy, hz, A.r, pole);
+  }
+}
+
 function buildActor(ci, slot) {
   const d = CH[ci], M = d.meta, U = makePoseUniforms(M), sq = d.id === 'squirrel';
   const mat = new THREE.MeshLambertMaterial({ map: sq && slot === 2 ? d.texGray : d.tex });
@@ -1200,7 +1284,8 @@ function buildActor(ci, slot) {
   const tag = makeTag(slot === 1 ? 'P1' : 'P2', slot === 1 ? '#c85a26' : '#6b7280');
   tag.sprite.position.y = M.tagY; tag.sprite.scale.set(0.8 * (1 + (MODEL_SIZE - 1) * 0.5), 0.6 * (1 + (MODEL_SIZE - 1) * 0.5), 1); root.add(tag.sprite);
   root.visible = false; scene.add(root);
-  return { ci, slot, def: d, root, rig, model, U, guns, gunNode: null, holdV: hold, tag, tintMats: [mat], phase: 0, sp: 0, flare: 0, yaw: 0, flash: 0, weapon: -1, recoil: 0, look: 0, atk: 0, ice: 0, iceT: 0, burnV: 0, burnT: 0, rl: null, rlK: 0, since: 9, spinV: 0, mfT: 0, unl: false };
+  const arms = buildArms(d.id, rig, hold);
+  return { ci, slot, def: d, root, rig, model, U, guns, gunNode: null, holdV: hold, tag, arms, tintMats: [mat, ...arms.mats], phase: 0, sp: 0, flare: 0, yaw: 0, flash: 0, weapon: -1, recoil: 0, look: 0, atk: 0, ice: 0, iceT: 0, burnV: 0, burnT: 0, rl: null, rlK: 0, since: 9, spinV: 0, mfT: 0, unl: false };
 }
 function gunFor(s, i) {
   let g = s.guns[i];
@@ -1212,6 +1297,7 @@ function setGun(s, w) {
   if (s.gunNode) { s.rig.remove(s.gunNode); s.gunNode = null; }
   s.weapon = w; s.unl = false; if (s.rl && s.rl.w !== w) s.rl = null;
   if (w >= 0) { s.gunNode = gunFor(s, w); s.rig.add(s.gunNode); }
+  updateArms(s);
 }
 function animateActor(s, dt, t, run, air) {
   const M = s.def.meta, cad = M.cadence || 1, flap = M.flapIdle !== undefined, sqr = s.def.id === 'squirrel';
@@ -1241,6 +1327,7 @@ function animateActor(s, dt, t, run, air) {
       const rx = g.userData.rx || 0;
       if (wd.melee) { g.rotation.x = rx + s.atk * (wd.swing || 1.5); g.position.z = g.userData.z + s.atk * 0.2 * s.def.gs; }
       else { g.rotation.x = rx - s.recoil * 0.35; g.position.z = g.userData.z - s.recoil * 0.05; weaponAnim(s, dt, wd); }
+      updateArms(s);
     }
   }
   s.ice = lerp(s.ice, s.iceT, dt * 8); s.burnV = lerp(s.burnV, s.burnT, dt * 10);
