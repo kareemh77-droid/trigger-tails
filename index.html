@@ -40,6 +40,7 @@
   .chip { background: rgba(255,251,240,.9); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
   #menuBtn { pointer-events: auto; position: absolute; top: calc(12px + var(--safe-t)); left: calc(12px + var(--safe-l)); border: 0; padding: 9px 14px; font-size: 15px; font-weight: 700; color: #5a3a1a; touch-action: manipulation; }
   #soundBtn { pointer-events: auto; position: absolute; top: calc(80px + var(--safe-t)); right: calc(12px + var(--safe-r)); width: 42px; height: 38px; border: 0; padding: 0; font-size: 20px; touch-action: manipulation; }
+  #fpBtn { pointer-events: auto; position: absolute; top: calc(128px + var(--safe-t)); right: calc(12px + var(--safe-r)); width: 56px; height: 38px; border: 0; padding: 0; font-size: 13px; font-weight: 800; color: #5a3a1a; touch-action: manipulation; }
   .b-bot { background: #7a52c7; }
   #lvlRow { display: flex; gap: 8px; margin-top: 8px; }
   #modeRow { display: flex; gap: 8px; margin-top: 10px; }
@@ -48,6 +49,8 @@
   #itemRow { display: flex; gap: 8px; margin-top: 8px; }
   .tog.item.sel { border-color: #2e9e57; background: #e8f8ee; color: #1f6b3b; }
   .tog.lvl.sel { border-color: #7a52c7; background: #f1eafc; color: #4b2a94; }
+  #viewRow { display: flex; gap: 8px; margin-top: 8px; }
+  .tog.view.sel { border-color: #3a73b8; background: #eaf2fc; color: #24507e; }
   #audioRow { display: flex; gap: 8px; margin-top: 10px; }
   .tog { flex: 1; border: 2px solid #e2d6bc; border-radius: 14px; background: #fff; color: #6b5c44; font-size: 15px; font-weight: 700; padding: 10px 4px; cursor: pointer; touch-action: manipulation; font-family: inherit; }
   .tog:active { transform: scale(.97); }
@@ -126,6 +129,8 @@
   <div id="buffRow"></div>
   <div id="compass" class="chip"><svg id="compassArrow" viewBox="0 0 26 26"><circle cx="13" cy="13" r="12" fill="#6b3518"/><path d="M13 4 L19 18 L13 15 L7 18 Z" fill="#ffd34d"/></svg><span id="compassText">🌰</span></div>
   <button id="soundBtn" class="chip" aria-label="Sound">🔊</button>
+  <button id="fpBtn" class="chip" aria-label="Camera view">🎥 3rd</button>
+  <div id="crosshair"></div>
   <div id="netStatus" class="hidden"></div>
   <div id="toast"></div>
 </div>
@@ -158,6 +163,7 @@
     <button class="btn b-host" id="hostBtn">Host Co-op</button>
     <button class="btn b-join" id="joinBtn">Join Co-op</button>
     <div id="audioRow"><button class="tog" id="sfxTog"></button><button class="tog" id="musTog"></button></div>
+    <div id="viewRow"><button class="tog view" id="fpTog3">🎥 3rd person</button><button class="tog view" id="fpTog1">👁️ 1st person</button></div>
     <button class="btn b-ghost hidden" id="installBtn">📲 Add to Home Screen</button>
   </div>
 </div>
@@ -2108,6 +2114,697 @@ const angDiff = (a, b) => Math.abs((((a - b + Math.PI) % (Math.PI * 2)) + Math.P
 
 const cam = { yaw: 0, pitch: 0.38, dist: 6.2, dragId: null, lastX: 0, lastY: 0, idle: 0 };
 
+// First-person view: a local-only camera choice, never sent to the other phone (the other phone just sees which way you face)
+let fpMode = false; try { fpMode = localStorage.getItem('tt_fp') === '1'; } catch (_) {}
+let fpPitch = 0;                    // first-person look angle, radians (+ = looking up)
+const FP_PITCH_MAX = 1.2;
+function fpLook(out) { const cp = Math.cos(fpPitch); return out.set(-Math.sin(cam.yaw) * cp, Math.sin(fpPitch), -Math.cos(cam.yaw) * cp); }
+function setFp(on) {
+  fpMode = !!on; if (fpMode) fpPitch = 0;
+  try { localStorage.setItem('tt_fp', fpMode ? '1' : '0'); } catch (_) {}
+  updateFpUi();
+}
+function updateFpUi() {
+  const b = $('fpBtn'); if (b) b.textContent = fpMode ? '👁️ 1st' : '🎥 3rd';
+  const f = $('fpTog1'), t = $('fpTog3');
+  if (f) f.classList.toggle('sel', fpMode);
+  if (t) t.classList.toggle('sel', !fpMode);
+}
+let xhairOn = false;
+
+// ---- first-person viewmodel (pure maths, no THREE) ---------------------------------------------------------------------------
+// Camera ("vm") space: +x right, +y up, -z forward. The game and the test renderer both use this one module, so what the tests
+// draw is exactly what the game draws.
+//
+// How it works, like most shooters:
+//  * The weapon is drawn through a narrower lens than the world (the vm group is squashed by VM_K in x and y), so it looks big and solid.
+//  * Each hand is a hand-built mesh (palm, jointed fingers, thumb, claws / nails / hooves for that animal) made for what it is holding:
+//    the fingers are walked around the actual cross-section of the grip or handguard, so they wrap it instead of poking through it.
+//  * The hand is placed from the gun itself (each weapon says where each hand goes and which way the palm faces), so it follows recoil,
+//    the pump and reloads exactly.
+//  * The forearm is a smooth tube from the wrist to an elbow below the edge of the screen; it bends a little when the wrist does.
+const FPL = (() => {
+  const PI = Math.PI;
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const len = a => Math.hypot(a[0], a[1], a[2]), norm = a => { const l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v)), lerp = (a, b, t) => a + (b - a) * t;
+  const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  // 3x3 matrices are row-major arrays of 9. Euler 'XYZ' like three.js: R = Rx * Ry * Rz
+  function rotM(rx, ry, rz) {
+    const cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry), cz = Math.cos(rz), sz = Math.sin(rz);
+    const a00 = cy, a02 = sy, a10 = sx * sy, a11 = cx, a12 = -sx * cy, a20 = -cx * sy, a21 = sx, a22 = cx * cy;
+    return [a00 * cz, -a00 * sz, a02, a10 * cz + a11 * sz, -a10 * sz + a11 * cz, a12, a20 * cz + a21 * sz, -a20 * sz + a21 * cz, a22];
+  }
+  const mv = (R, v) => [R[0] * v[0] + R[1] * v[1] + R[2] * v[2], R[3] * v[0] + R[4] * v[1] + R[5] * v[2], R[6] * v[0] + R[7] * v[1] + R[8] * v[2]];
+  const mm = (A, B) => { const o = new Array(9); for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) o[r * 3 + c] = A[r * 3] * B[c] + A[r * 3 + 1] * B[3 + c] + A[r * 3 + 2] * B[6 + c]; return o; };
+  const colOf = (R, j) => [R[j], R[3 + j], R[6 + j]], fromCols = (X, Y, Z) => [X[0], Y[0], Z[0], X[1], Y[1], Z[1], X[2], Y[2], Z[2]];
+  function m2q(m) {
+    const t = m[0] + m[4] + m[8]; let x, y, z, w;
+    if (t > 0) { const s = Math.sqrt(t + 1) * 2; w = s / 4; x = (m[7] - m[5]) / s; y = (m[2] - m[6]) / s; z = (m[3] - m[1]) / s; }
+    else if (m[0] > m[4] && m[0] > m[8]) { const s = Math.sqrt(1 + m[0] - m[4] - m[8]) * 2; w = (m[7] - m[5]) / s; x = s / 4; y = (m[1] + m[3]) / s; z = (m[2] + m[6]) / s; }
+    else if (m[4] > m[8]) { const s = Math.sqrt(1 + m[4] - m[0] - m[8]) * 2; w = (m[2] - m[6]) / s; x = (m[1] + m[3]) / s; y = s / 4; z = (m[5] + m[7]) / s; }
+    else { const s = Math.sqrt(1 + m[8] - m[0] - m[4]) * 2; w = (m[3] - m[1]) / s; x = (m[2] + m[6]) / s; y = (m[5] + m[7]) / s; z = s / 4; }
+    return [x, y, z, w];
+  }
+  function q2m(q) {
+    const [x, y, z, w] = q;
+    return [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w), 2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w), 2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)];
+  }
+  function slerpM(A, B, t) {
+    if (t <= 0) return A; if (t >= 1) return B;
+    const a = m2q(A); let b = m2q(B), d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+    if (d < 0) { b = b.map(v => -v); d = -d; }
+    let q;
+    if (d > 0.9995) q = a.map((v, i) => v + (b[i] - v) * t);
+    else { const th = Math.acos(d), s = Math.sin(th), ka = Math.sin((1 - t) * th) / s, kb = Math.sin(t * th) / s; q = a.map((v, i) => v * ka + b[i] * kb); }
+    const l = Math.hypot(q[0], q[1], q[2], q[3]); return q2m(q.map(v => v / l));
+  }
+  function axisM(a, t) { const c = Math.cos(t), s_ = Math.sin(t), C = 1 - c, [x, y, z] = a;
+    return [c + x * x * C, x * y * C - z * s_, x * z * C + y * s_, y * x * C + z * s_, c + y * y * C, y * z * C - x * s_, z * x * C - y * s_, z * y * C + x * s_, c + z * z * C]; }
+  // a hand's frame from where its fingers point (f) and where the back of the hand faces (b): columns X (across the knuckles), Y = f, Z = b
+  function frameFB(f, b) { const Z = norm(b), Y = norm(sub(f, mul(Z, dot(f, Z)))); return fromCols(cross(Y, Z), Y, Z); }
+
+  // ---- the lens ----
+  const VM_TAN = 0.34;                       // tan(half the height) of the weapon lens on a landscape phone (about a 42 degree view)
+  const vmTan = aspect => VM_TAN * Math.pow(Math.max(1, 1.75 / aspect), 0.5);   // tall portrait screens: a slightly wider lens so it all still fits
+
+  // ---- how each kind of weapon sits ----
+  // p: where the right hand's grip is (landscape), rx: nose up, ry: turned toward the crosshair, rz: roll, s: weapon scale
+  // guns: p = where the right hand's grip is (landscape), rx nose up, ry turned in toward the crosshair, rz roll, s scale.
+  // knives, swords, hammers and grenades are placed by the hand instead: hand = { p: where the hand is, f: where its fingers point, b: where the back of the hand faces }
+  const CLS = {
+    pistol: { p: [0.075, -0.158, -0.56], rx: 0.06, ry: 0.12, rz: 0.0, s: 1.0 },
+    smg:    { p: [0.12, -0.2, -0.43], rx: 0.04, ry: 0.09, rz: 0.0, s: 1.0 },
+    rifle:  { p: [0.12, -0.15, -0.27], rx: 0.04, ry: 0.18, rz: 0.0, s: 0.8 },
+    heavy:  { p: [0.13, -0.205, -0.42], rx: 0.03, ry: 0.08, rz: 0.0, s: 1.0 },
+    knife:  { s: 0.9, hand: { p: [0.155, -0.105, -0.36], f: [0.315, -0.015, -0.949], b: [0.592, 0.791, 0.184] }, swing: [1, 0.1, 0.25] },
+    thrown: { s: 0.62, hand: { p: [0.15, -0.115, -0.38], f: [-0.35, 0.55, -0.75], b: [0.6, 0.65, 0.25] }, swing: [1, 0, 0] },
+    sword:  { s: 1.0, hand: { p: [0.1, -0.075, -0.46], f: [-0.62, 0.2, -0.76], b: [0.75, 0.25, -0.55] }, swing: [1, 0, -0.35] },
+    hammer: { s: 0.9, hand: { p: [0.13, -0.12, -0.46], f: [-0.83, -0.26, -0.11], b: [0.25, -0.52, -0.66] }, swing: [0.3, 0, -1] }
+  };
+  const WPOSE = { 2: { p: [0.14, -0.17, -0.5], s: 0.75, ry: 0.06 }, 11: { p: [0.12, -0.2, -0.42], s: 0.85 } };
+  const CLS_OF = ['pistol', 'smg', 'heavy', 'knife', 'sword', 'rifle', 'thrown', 'rifle', 'rifle', 'rifle', 'heavy', 'heavy', 'rifle', 'hammer', 'thrown'];
+
+  // ---- where each hand goes on each weapon (all in the weapon's own coordinates: +z to the muzzle, +y up, +x to the shooter's LEFT) ----
+  // h: the handle the hand closes around: c centre, ax its long axis, u one cross axis, hu / hv half sizes along u and ax x u, cr corner rounding
+  // f: which way the fingers leave the knuckles, b: which way the back of the hand faces; y: where the handle crosses the palm (0 wrist .. 1 knuckles)
+  const Hd = (c, ax, u, hu, hv, cr) => ({ c, ax, u, hu, hv, cr: cr === undefined ? Math.min(hu, hv) * 0.6 : cr });
+  const pistolGrip = (c, th, hu, hv) => Hd(c, [0, Math.cos(th), Math.sin(th)], [1, 0, 0], hu, hv);
+  const RGRIP = (c, th, hu, hv, o) => Object.assign({ h: pistolGrip(c, th, hu, hv), f: [-0.3, -Math.sin(th), Math.cos(th)], b: [-1, 0.35 * Math.sin(th), -0.35 * Math.cos(th)], y: 0.56, dev: [0.5, 0.1] }, o || {});
+  const UNDER = (c, hu, hv, o) => Object.assign({ h: Hd(c, [0, 0, 1], [1, 0, 0], hu, hv), f: [-1, 0.35, 0], b: [-0.35, -1, 0], y: 0.58, dev: [0.45, 0.1] }, o || {});
+  const LSIDE = (c, hu, hv, o) => Object.assign({ h: Hd(c, [0, 0, 1], [1, 0, 0], hu, hv), f: [-0.4, 0.92, 0], b: [0.92, 0.4, 0], y: 0.56, dev: [-0.35, 0.1] }, o || {});
+  const SIDE = (c, hu, hv, o) => Object.assign({ h: Hd(c, [0, 0, 1], [1, 0, 0], hu, hv), f: [0.34, 1, 0.35], b: [1, -0.25, -0.25], y: 0.55 }, o || {});
+  const GRIPS = [
+    { R: RGRIP([0, -0.08, 0.008], 0.2, 0.027, 0.031), L: { h: pistolGrip([0.004, -0.1, 0.03], 0.2, 0.04, 0.042), f: [-0.36, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52 } },  // 0 pistol: both hands, the left wrapped round the right
+    { R: RGRIP([0, -0.1, 0.06], 0.08, 0.023, 0.029), L: LSIDE([0, 0.005, 0.19], 0.031, 0.048) },                                       // 1 uzi
+    { R: RGRIP([0, -0.11, -0.02], 0.2, 0.02, 0.025), L: RGRIP([0, -0.13, 0.2], 0, 0.02, 0.0225, { f: [0.2, 0, 1], b: [1, -0.1, -0.2], y: 0.55 }) },  // 2 rocket launcher: two upright grips
+    { R: { h: Hd([0, 0, -0.012], [0, 0, 1], [1, 0, 0], 0.017, 0.021), f: [0, -1, 0], b: [-1, 0, 0], y: 0.55 } },                       // 3 knife
+    { R: { h: Hd([0, 0, 0.042], [0, 0, 1], [1, 0, 0], 0.019, 0.022), f: [-0.1, -1, 0], b: [-1, 0.1, 0], y: 0.55 },
+      L: { h: Hd([0, 0, -0.05], [0, 0, 1], [1, 0, 0], 0.019, 0.022), f: [0.2, -1, 0], b: [1, 0.2, 0], y: 0.55, auto: true } },                     // 4 katana: both hands on the handle
+    { R: RGRIP([0, -0.075, -0.09], 0.25, 0.02, 0.0225), L: LSIDE([0, 0.015, 0.13], 0.025, 0.043) },                                    // 5 crossbow
+    { R: { h: Hd([0, 0, 0], [0, 1, 0], [1, 0, 0], 0.085, 0.085, 0.085), f: [-1, 0, 0.5], b: [-0.5, 0, -1], y: 0.5, wrap: 2.2 } },   // 6 grenade
+    { R: RGRIP([0, -0.09, 0.02], 0.2, 0.0225, 0.025), L: SIDE([0, 0.02, 0.27], 0.04, 0.04, { h: Hd([0, 0.02, 0.27], [0, 0, 1], [1, 0, 0], 0.04, 0.04, 0.04) }) },   // 7 flamethrower: the left hand on the barrel
+    { R: RGRIP([0, -0.1, -0.02], 0.2, 0.025, 0.03), L: LSIDE([0.01, 0, 0.09], 0.048, 0.05) },                                         // 8 freeze ray
+    { R: RGRIP([0, -0.045, -0.085], 0.75, 0.021, 0.03, { y: 0.52 }), L: LSIDE([0, -0.003, 0.31], 0.026, 0.0545, { h: Hd([0, -0.003, 0.31], [0, 0, 1], [1, 0, 0], 0.026, 0.0545, 0.02) }) },   // 9 shotgun: the left hand works the pump
+    { R: RGRIP([0, -0.07, -0.05], 0.3, 0.02, 0.0225), L: LSIDE([0, -0.01, 0.3], 0.025, 0.045) },                                   // 10 sniper
+    { R: RGRIP([0, -0.08, -0.07], 0.25, 0.02, 0.0225), L: LSIDE([0, 0, 0.17], 0.052, 0.052, { h: Hd([0, 0, 0.17], [0, 0, 1], [1, 0, 0], 0.052, 0.052, 0.052) }) },   // 11 minigun: the left hand on the carry handle
+    { R: RGRIP([0, -0.09, -0.02], 0.2, 0.0225, 0.025), L: LSIDE([0, 0.01, 0.15], 0.048, 0.058) },                                   // 12 plasma rifle
+    { R: { h: Hd([0, 0, 0.05], [0, 0, 1], [1, 0, 0], 0.017, 0.017), f: [-0.25, -1, 0], b: [-1, 0.25, 0], y: 0.55 },
+      L: { h: Hd([0, 0, 0.21], [0, 0, 1], [1, 0, 0], 0.015, 0.015), f: [0.3, -1, 0], b: [1, 0.3, 0], y: 0.55, auto: true } },                       // 13 sledgehammer
+    { R: { h: Hd([0, -0.02, 0.025], [0, 1, 0], [1, 0, 0], 0.07, 0.062, 0.03), f: [-1, 0, 0.6], b: [-0.6, 0, -1], y: 0.5, wrap: 2.6 } } // 14 dynamite
+  ];
+  // the free hand when a weapon only needs one (knife, grenades): open and relaxed, low on the left. f: fingers, b: back of the hand (vm space)
+  const FREE = {
+    knife:  { pose: 'open', p: [-0.15, -0.12, -0.37], f: [0.5, 0.3, -0.8], b: [-0.62, 0.7, 0.3] },
+    thrown: { pose: 'open', p: [-0.15, -0.12, -0.38], f: [0.45, 0.35, -0.82], b: [-0.62, 0.7, 0.3] }
+  };
+  // which way each forearm leaves the screen (vm space), per weapon kind: right, left
+  const ELBOW = {
+    pistol: [[0.25, -0.75, 0.62], [-0.3, -0.75, 0.6]], smg: [[0.4, -0.75, 0.55], [-0.4, -0.75, 0.55]], rifle: [[0.45, -0.7, 0.55], [-0.7, -0.6, 0.4]],
+    heavy: [[0.45, -0.7, 0.55], [-0.45, -0.7, 0.55]], knife: [[0.4, -0.75, 0.5], [-0.35, -0.8, 0.5]], thrown: [[0.4, -0.75, 0.5], [-0.35, -0.8, 0.5]],
+    sword: [[0.6, -0.6, 0.5], [-0.35, -0.8, 0.5]], hammer: [[0.55, -0.65, 0.5], [-0.35, -0.8, 0.5]], fists: [[0.35, -0.75, 0.55], [-0.35, -0.75, 0.55]]
+  };
+
+  // ---- each character's hands and forearms (sizes in metres of the viewmodel; colours 0..255) ----
+  // W palm width, Lp palm length, Tp palm thickness, FL longest finger, fr finger radius, fingers [{x across the palm, l length, y knuckle, r radius}]
+  // seg: how each finger splits into bones, thumb {l, r} (l 0 = none), claw {l, r} (or nails), arm: wrist radius, elbow radius, flatness, forearm length
+  const F4 = [{ x: -0.37, l: 0.93, y: 0.99 }, { x: -0.12, l: 1, y: 1 }, { x: 0.13, l: 0.95, y: 0.98 }, { x: 0.37, l: 0.78, y: 0.92 }];
+  const KITS = {
+    samurai: { W: 0.082, Lp: 0.086, Tp: 0.03, FL: 0.08, fr: 0.0088, fingers: F4, thumb: { l: 0.066, r: 0.0105 },
+      col: { hand: [206, 150, 124], palm: [222, 170, 146], fing: [206, 150, 124], back: [74, 30, 26], nail: [228, 190, 172] }, nail: true,
+      arm: { rw: 0.03, re: 0.046, flat: 0.78, Lf: 0.42, col: [150, 34, 28], band: [34, 26, 26], trim: [196, 156, 70], bands: 0.045 } },
+    squirrel: { W: 0.066, Lp: 0.058, Tp: 0.027, FL: 0.074, fr: 0.0068, fingers: F4, thumb: { l: 0.026, r: 0.0072 }, claw: { l: 0.017, r: 0.0042, curl: 0.55 },
+      col: { hand: [184, 116, 60], palm: [150, 100, 66], fing: [160, 100, 56], claw: [42, 30, 22] }, fur: 0.16,
+      arm: { rw: 0.027, re: 0.044, flat: 0.86, Lf: 0.4, col: [178, 104, 48], col2: [200, 140, 86], fluff: 0.06 } },
+    kitten: { W: 0.07, Lp: 0.052, Tp: 0.036, FL: 0.04, fr: 0.0112, fingers: [{ x: -0.36, l: 0.92, y: 0.97 }, { x: -0.12, l: 1, y: 1 }, { x: 0.13, l: 0.98, y: 0.99 }, { x: 0.37, l: 0.86, y: 0.95 }],
+      seg: [0.42, 0.33, 0.25], thumb: { l: 0.022, r: 0.0098 }, pads: true,
+      col: { hand: [228, 212, 202], palm: [222, 150, 160], fing: [232, 218, 208], pad: [222, 140, 152] }, fur: 0.08,
+      arm: { rw: 0.029, re: 0.045, flat: 0.9, Lf: 0.4, col: [214, 198, 188], col2: [236, 222, 212], fluff: 0.05 } },
+    llama: { W: 0.064, Lp: 0.075, Tp: 0.046, FL: 0.052, fr: 0.0165, fingers: [{ x: -0.24, l: 1, y: 1, r: 1 }, { x: 0.24, l: 1, y: 1, r: 1 }], seg: [0.55, 0.45], thumb: { l: 0 },
+      claw: { l: 0.02, r: 0.012, curl: 0.25, nail: true }, wrapMax: 1.2, toes: true,
+      col: { hand: [240, 226, 198], palm: [96, 84, 74], fing: [238, 222, 192], claw: [92, 72, 54] }, fur: 0.1,
+      arm: { rw: 0.034, re: 0.05, flat: 0.92, Lf: 0.42, col: [238, 220, 186], col2: [250, 238, 212], fluff: 0.16 } },
+    moose: { W: 0.066, Lp: 0.07, Tp: 0.05, FL: 0.056, fr: 0.0185, fingers: [{ x: -0.25, l: 1, y: 1, r: 1 }, { x: 0.25, l: 1, y: 1, r: 1 }], seg: [0.5, 0.5], thumb: { l: 0 },
+      hoof: true, wrapMax: 0.9, dew: true,
+      col: { hand: [96, 64, 40], palm: [80, 54, 34], fing: [52, 43, 37], claw: [52, 43, 37] }, fur: 0.1,
+      arm: { rw: 0.033, re: 0.05, flat: 0.9, Lf: 0.44, col: [122, 82, 50], col2: [98, 66, 42], fluff: 0.05 } },
+    brachio: { W: 0.092, Lp: 0.07, Tp: 0.05, FL: 0.046, fr: 0.0155, fingers: [{ x: -0.36, l: 0.95, y: 0.98 }, { x: -0.12, l: 1, y: 1 }, { x: 0.13, l: 0.98, y: 0.99 }, { x: 0.37, l: 0.85, y: 0.95 }],
+      seg: [0.55, 0.45], thumb: { l: 0.036, r: 0.016 }, claw: { l: 0.012, r: 0.0085, curl: 0.3, nail: true }, spots: true,
+      col: { hand: [128, 105, 68], palm: [150, 128, 90], fing: [124, 101, 65], claw: [74, 60, 42], spot: [88, 70, 46] }, fur: 0.05,
+      arm: { rw: 0.04, re: 0.056, flat: 0.88, Lf: 0.44, col: [126, 103, 66], col2: [146, 124, 86], spots: true } },
+    troll: { W: 0.098, Lp: 0.1, Tp: 0.04, FL: 0.094, fr: 0.0122, fingers: F4, thumb: { l: 0.08, r: 0.0145 }, claw: { l: 0.022, r: 0.0068, curl: 0.5 }, knobs: true,
+      col: { hand: [124, 106, 56], palm: [150, 128, 76], fing: [120, 102, 54], claw: [48, 40, 30] }, fur: 0.07,
+      arm: { rw: 0.038, re: 0.058, flat: 0.82, Lf: 0.44, col: [122, 104, 54], col2: [138, 118, 66] } },
+    dragon: { W: 0.086, Lp: 0.084, Tp: 0.034, FL: 0.09, fr: 0.0108, fingers: [{ x: -0.32, l: 0.95, y: 0.99 }, { x: 0, l: 1, y: 1 }, { x: 0.32, l: 0.9, y: 0.96 }],
+      thumb: { l: 0.06, r: 0.012 }, claw: { l: 0.034, r: 0.0075, curl: 0.6 }, scales: true,
+      col: { hand: [44, 40, 116], palm: [96, 86, 160], fing: [40, 44, 120], claw: [150, 86, 196] }, fur: 0.06,
+      arm: { rw: 0.034, re: 0.052, flat: 0.84, Lf: 0.44, col: [38, 38, 112], col2: [92, 82, 156], scales: true } }
+  };
+  const kitOf = id => KITS[id] || KITS.samurai;
+
+  // ---- a small mesh builder ----
+  function Mesh() { this.P = []; this.C = []; this.I = []; }
+  Mesh.prototype.v = function (p, c) { this.P.push(p[0], p[1], p[2]); this.C.push(c[0], c[1], c[2]); return this.P.length / 3 - 1; };
+  // a tube through pts with elliptical rings (radius r[i], flatness fl), rings stay square to the path (parallel transport) starting from 'side';
+  // caps: 'dome' rounds the end off, 'flat' closes it
+  Mesh.prototype.tube = function (pts, r, fl, side, colFn, capStart, capEnd, nSeg) {
+    const SEG = nSeg || 10, n = pts.length, rings = [];
+    let X = null;
+    for (let i = 0; i < n; i++) {
+      const T = norm(sub(pts[Math.min(n - 1, i + 1)], pts[Math.max(0, i - 1)]));
+      let xx = X || side; xx = sub(xx, mul(T, dot(xx, T))); if (len(xx) < 1e-6) xx = Math.abs(T[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+      xx = norm(sub(xx, mul(T, dot(xx, T)))); X = xx; const Y = cross(T, X);
+      const ring = [], fz = Array.isArray(fl) ? fl[i] : fl;
+      for (let k = 0; k < SEG; k++) {
+        const a = k / SEG * PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        const p = add(pts[i], add(mul(X, r[i] * ca), mul(Y, r[i] * fz * sa)));
+        ring.push(this.v(p, colFn(i / (n - 1), ca, sa, p)));
+      }
+      rings.push({ ring, T, X, Y, c: pts[i], r: r[i], fz });
+    }
+    for (let i = 0; i < n - 1; i++) for (let k = 0; k < SEG; k++) {
+      const a = rings[i].ring[k], b = rings[i].ring[(k + 1) % SEG], c = rings[i + 1].ring[k], d = rings[i + 1].ring[(k + 1) % SEG];
+      this.I.push(a, b, c, b, d, c);
+    }
+    const cap = (R, dir, kind, t) => {
+      if (!kind) return;
+      let prev = R.ring;
+      const steps = kind === 'dome' ? 3 : 0;
+      for (let s = 1; s <= steps; s++) {
+        const th = s / (steps + 1) * PI / 2, k = Math.cos(th), off = Math.sin(th) * R.r * 0.85, ring = [];
+        for (let q = 0; q < SEG; q++) {
+          const a = q / SEG * PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+          const p = add(add(R.c, mul(dir, off)), add(mul(R.X, R.r * k * ca), mul(R.Y, R.r * R.fz * k * sa)));
+          ring.push(this.v(p, colFn(t, ca, sa, p)));
+        }
+        for (let q = 0; q < SEG; q++) { const a = prev[q], b = prev[(q + 1) % SEG], c = ring[q], d = ring[(q + 1) % SEG]; if (dot(dir, R.T) > 0) this.I.push(a, b, c, b, d, c); else this.I.push(a, c, b, b, c, d); }
+        prev = ring;
+      }
+      const tip = this.v(add(R.c, mul(dir, kind === 'dome' ? R.r * 0.85 : 0)), colFn(t, 1, 0, R.c));
+      for (let q = 0; q < SEG; q++) { const a = prev[q], b = prev[(q + 1) % SEG]; if (dot(dir, R.T) > 0) this.I.push(a, b, tip); else this.I.push(a, tip, b); }
+    };
+    cap(rings[n - 1], rings[n - 1].T, capEnd, 1); cap(rings[0], mul(rings[0].T, -1), capStart, 0);
+    return rings;
+  };
+  // a rounded block (superellipsoid): centre c, axes ax[3] (unit), half sizes h[3], e < 1 is boxier; shape(p, d) may push points around
+  Mesh.prototype.blob = function (c, ax, h, e, colFn, shape) {
+    const NA = 10, NB = 14, base = this.P.length / 3;
+    const sp = (w, ee) => Math.sign(w) * Math.pow(Math.abs(w), ee);
+    for (let i = 0; i <= NA; i++) {
+      const th = -PI / 2 + i / NA * PI;
+      for (let j = 0; j < NB; j++) {
+        const ph = j / NB * PI * 2;
+        const d = [sp(Math.cos(th), e) * sp(Math.cos(ph), e), sp(Math.sin(th), e), sp(Math.cos(th), e) * sp(Math.sin(ph), e)];   // local: x across, y along, z through
+        let loc = [d[0] * h[0], d[1] * h[1], d[2] * h[2]]; if (shape) loc = shape(loc, d);
+        const p = add(c, add(mul(ax[0], loc[0]), add(mul(ax[1], loc[1]), mul(ax[2], loc[2]))));
+        this.v(p, colFn(loc, d, p));
+      }
+    }
+    for (let i = 0; i < NA; i++) for (let j = 0; j < NB; j++) {
+      const a = base + i * NB + j, b = base + i * NB + (j + 1) % NB, c2 = base + (i + 1) * NB + j, d = base + (i + 1) * NB + (j + 1) % NB;
+      this.I.push(a, c2, b, b, c2, d);
+    }
+  };
+  Mesh.prototype.finish = function (mirror) {
+    const P = new Float32Array(this.P), C = new Float32Array(this.C.map(v => clamp(v / 255, 0, 1))), I = new Uint16Array(this.I);
+    if (mirror) { for (let i = 0; i < P.length; i += 3) P[i] = -P[i]; for (let t = 0; t < I.length; t += 3) { const q = I[t + 1]; I[t + 1] = I[t + 2]; I[t + 2] = q; } }
+    const N = new Float32Array(P.length);
+    for (let t = 0; t < I.length; t += 3) {
+      const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3;
+      const e1 = [P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]], e2 = [P[c] - P[a], P[c + 1] - P[a + 1], P[c + 2] - P[a + 2]], n = cross(e1, e2);
+      for (const v of [a, b, c]) { N[v] += n[0]; N[v + 1] += n[1]; N[v + 2] += n[2]; }
+    }
+    for (let i = 0; i < N.length; i += 3) { const l = Math.hypot(N[i], N[i + 1], N[i + 2]) || 1; N[i] /= l; N[i + 1] /= l; N[i + 2] /= l; }
+    return { P, N, C, I, count: P.length / 3 };
+  };
+  // cheap repeatable noise for fur grain and spots
+  const hash3 = p => { const h = Math.sin(p[0] * 1271.1 + p[1] * 3117.7 + p[2] * 2269.3) * 43758.5453; return h - Math.floor(h); };
+  const vnoise = (p, f) => { const q = [p[0] * f, p[1] * f, p[2] * f], i = q.map(Math.floor), fr = q.map((v, k) => v - i[k]), s = fr.map(v => v * v * (3 - 2 * v)); let r = 0;
+    for (let dx = 0; dx < 2; dx++) for (let dy = 0; dy < 2; dy++) for (let dz = 0; dz < 2; dz++) r += hash3([i[0] + dx, i[1] + dy, i[2] + dz]) * (dx ? s[0] : 1 - s[0]) * (dy ? s[1] : 1 - s[1]) * (dz ? s[2] : 1 - s[2]);
+    return r; };
+  const shade = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+
+  // ---- the shape of what the hand is holding, seen side-on by the fingers ----
+  // returns the outline (in the hand's y,z plane, around the handle's centre) and a radius-by-angle table of that outline grown by the finger radius
+  function profile(h, M, gs, grow) {
+    const X = colOf(M, 0), Y = colOf(M, 1), Z = colOf(M, 2), ax = norm(h.ax);
+    const u = norm(sub(h.u, mul(ax, dot(h.u, ax)))), v = cross(ax, u), axX = dot(ax, X);
+    const hu = h.hu * gs, hv = h.hv * gs, cr = Math.min(h.cr * gs, hu, hv), out = [];
+    const NP = 48;
+    for (let i = 0; i < NP; i++) {
+      const a = (i + 0.5) / NP * PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      const s = Math.sign(ca) * (hu - cr) + cr * ca, t = Math.sign(sa) * (hv - cr) + cr * sa;
+      let q = add(mul(u, s), mul(v, t));
+      q = Math.abs(axX) > 0.35 ? sub(q, mul(ax, dot(q, X) / axX)) : sub(q, mul(X, dot(q, X)));
+      out.push([dot(q, Y), dot(q, Z)]);
+    }
+    let area = 0; for (let i = 0; i < NP; i++) { const p = out[i], q = out[(i + 1) % NP]; area += p[0] * q[1] - q[0] * p[1]; }
+    if (area < 0) out.reverse();
+    const off = out.map((p, i) => { const a = out[(i + NP - 1) % NP], b = out[(i + 1) % NP], d = [b[0] - a[0], b[1] - a[1]], l = Math.hypot(d[0], d[1]) || 1; return [p[0] + d[1] / l * grow, p[1] - d[0] / l * grow]; });
+    const NT = 720, rho = new Float32Array(NT);
+    for (let k = 0; k < NT; k++) {
+      const a = k / NT * PI * 2, dy = Math.cos(a), dz = Math.sin(a); let best = 0;
+      for (let i = 0; i < NP; i++) {
+        const p = off[i], q = off[(i + 1) % NP], ey = q[0] - p[0], ez = q[1] - p[1], den = dy * ez - dz * ey;
+        if (Math.abs(den) < 1e-12) continue;
+        const t = (p[0] * ez - p[1] * ey) / den, s = (p[0] * dz - p[1] * dy) / den;
+        if (t > 0 && s >= -1e-6 && s <= 1 + 1e-6) best = Math.max(best, t);
+      }
+      rho[k] = best;
+    }
+    let zmax = -1e9, ymin = 1e9, ymax = -1e9; for (const p of out) { zmax = Math.max(zmax, p[1]); ymin = Math.min(ymin, p[0]); ymax = Math.max(ymax, p[0]); }
+    return { out, rho, zmax, ymin, ymax };
+  }
+  const NT = 720;
+  const pathAt = (pr, th) => { const k = ((Math.round(th / (PI * 2) * NT) % NT) + NT) % NT, r = pr.rho[k]; return [Math.cos(th) * r, Math.sin(th) * r]; };
+  // walk a chain of bones around the outline: each joint lands on the outline, one bone length from the last; dir -1 = fingers, +1 = thumb
+  function walk(pr, start, lens, dir, maxWrap) {
+    let P = start.slice(), th = Math.atan2(P[1], P[0]); const th0 = th, pts = [P], dth = PI * 2 / NT;
+    const unwrap = (a, ref) => a + Math.round((ref - a) / (PI * 2)) * PI * 2;
+    let lastD = null;
+    for (const L of lens) {
+      let found = null;
+      if (Math.abs(th - th0) < maxWrap) {
+        for (let j = 1; j <= NT; j++) {
+          const t2 = th + dir * j * dth; if (Math.abs(t2 - th0) > maxWrap) break;
+          const Q = pathAt(pr, t2), d = Math.hypot(Q[0] - P[0], Q[1] - P[1]);
+          if (d >= L) { found = Q; break; }
+        }
+      }
+      let N;
+      if (found) { const d = [found[0] - P[0], found[1] - P[1]], l = Math.hypot(d[0], d[1]); N = [P[0] + d[0] / l * L, P[1] + d[1] / l * L]; lastD = [d[0] / l, d[1] / l]; }
+      else {                                                    // wrapped as far as it goes: keep curling gently
+        const d0 = lastD || [-Math.sin(th) * dir, Math.cos(th) * dir], a = dir * 0.45, ca = Math.cos(a), sa = Math.sin(a);
+        const d = [d0[0] * ca - d0[1] * sa, d0[0] * sa + d0[1] * ca]; lastD = d; N = [P[0] + d[0] * L, P[1] + d[1] * L];
+      }
+      th = unwrap(Math.atan2(N[1], N[0]), th);
+      pts.push(N); P = N;
+    }
+    return pts;
+  }
+  // smooth a polyline (Catmull-Rom) so knuckles bend round instead of kinking
+  function smooth(pts, sub_) {
+    const out = [], n = pts.length;
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(n - 1, i + 2)];
+      for (let s = 0; s < sub_; s++) {
+        const t = s / sub_, t2 = t * t, t3 = t2 * t;
+        out.push([0, 1, 2].map(k => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3)));
+      }
+    }
+    out.push(pts[n - 1].slice()); return out;
+  }
+
+  // ---- build one hand (always as a right hand; the left is its mirror image) ----
+  // pose: { kind: 'grip', h, M (hand frame in weapon space), gs (weapon scale), y, wrap } | { kind: 'open' } | { kind: 'fist' }
+  // returns the mesh plus 'anchor': where the handle's centre sits in the hand's own coordinates
+  function buildHand(id, pose, mirror) {
+    const K = kitOf(id), col = K.col, W = K.W, Lp = K.Lp, Tp = K.Tp, fr = K.fr, m = new Mesh();
+    const fur = K.fur || 0.06;
+    const grain = (base, p, amt) => { const n = vnoise(p, 260) - 0.5, n2 = vnoise(p, 900) - 0.5; let k = 1 + (n * 0.7 + n2 * 0.5) * (amt === undefined ? fur : amt); let c = shade(base, k);
+      if (K.spots && vnoise(p, 75) > 0.66) c = mix(c, col.spot, 0.75); if (K.scales) { const s = Math.abs(Math.sin(p[0] * 520) * Math.sin(p[1] * 520 + p[2] * 300)); c = shade(c, 0.86 + 0.22 * s); } return c; };
+    // what the fingers close around
+    let pr = null, anchor = [0, 0, 0], wrapMax = K.wrapMax || 4.3;
+    if (pose.kind === 'grip') {
+      pr = profile(pose.h, pose.M, pose.gs, fr * 1.08);
+      const y0 = Lp * (pose.y || 0.56), z0 = -Tp * 0.5 - 0.002 - pr.zmax;
+      anchor = [pose.x || 0, y0, z0];
+      if (pose.wrap) wrapMax = Math.min(wrapMax, pose.wrap);
+    } else if (pose.kind === 'fist') {
+      const rr = K.FL * 0.2; pr = { rho: new Float32Array(NT).fill(rr + fr * 1.05), zmax: rr }; anchor = [0, Lp * 0.66, -Tp * 0.5 - rr - 0.001]; wrapMax = Math.min(K.wrapMax || 5.6, 5.6);
+    }
+    // palm
+    const palmCol = (loc, d, p) => {
+      let c = mix(col.palm, col.hand, sstep(-0.35, 0.35, d[2]));
+      if (col.back) c = mix(c, col.back, sstep(0.25, 0.55, d[2]) * sstep(-0.95, -0.55, d[1]) * (1 - sstep(0.7, 0.95, d[1])) > 0.5 ? 1 : 0);
+      if (K.pads) { const pd = Math.hypot(loc[0] / (W * 0.24), (loc[1] - Lp * 0.04) / (Lp * 0.3)); if (d[2] < -0.3 && pd < 1) c = col.pad; }
+      return grain(c, p);
+    };
+    const taper = (loc, d) => { const t = (loc[1] / (Lp * 0.5) + 1) / 2; return [loc[0] * (0.82 + 0.18 * t) + (loc[0] < 0 ? -1 : 0) * 0, loc[1], loc[2] * (1 - 0.15 * sstep(0.3, 1, t))]; };
+    m.blob([0, Lp * 0.5, 0], [[1, 0, 0], [0, 1, 0], [0, 0, 1]], [W * 0.5, Lp * 0.56, Tp * 0.5], 0.55, palmCol, taper);
+    // wrist: overlaps the palm's heel and the start of the forearm
+    const ar = K.arm, handSide = zc => mix(col.palm, col.hand, sstep(-0.35, 0.35, zc));
+    const dv = pose.dev || [0.25, 0.1], T0m = norm([dv[0], -1, dv[1]]);
+    const wb = [0, Lp * 0.02, 0], W0 = add(wb, mul(T0m, Lp * 0.32)), wm = add(wb, mul(T0m, Lp * 0.15));
+    const wr = m.tube([W0, wm, wb, [0, Lp * 0.12, 0], [0, Lp * 0.24, 0]], [ar.rw, ar.rw * 0.99, ar.rw * 0.97, W * 0.44, W * 0.4],
+      [ar.flat, ar.flat * 0.99, ar.flat * 0.97, Tp * 0.5 / (W * 0.44), Tp * 0.48 / (W * 0.4)], [1, 0, 0],
+      (t, ca, sa, p) => {
+        const zc = -sa, a = armCol(id, 0, ca, zc), h = handSide(zc), k = K.arm.bands ? sstep(0.25, 0.5, t) : sstep(0.15, 0.85, t);
+        return mix(a, grain(h, p), k);
+      }, false, false, 14);
+    // fingers
+    const seg = K.seg || [0.45, 0.31, 0.24];
+    const fingerTips = [];
+    K.fingers.forEach((f, fi) => {
+      const L = K.FL * f.l, r0 = fr * (f.r || 1) * (K.toes ? 1 : (1 - 0.12 * Math.abs(f.x) * 2)), x = f.x * W * (K.fingers.length > 2 ? 0.95 : 1);
+      const kn = [x, Lp * f.y - r0 * 0.6, -Tp * 0.12];
+      let chain;
+      if (pr) {
+        const st = [kn[1] - anchor[1], kn[2] - anchor[2]];
+        const yz = walk(pr, st, seg.map(s => s * L), -1, wrapMax);
+        chain = yz.map(q => [x, q[0] + anchor[1], q[1] + anchor[2]]);
+      } else {                                                  // open hand: relaxed curl, fingers fanned a little
+        const spread = f.x * 0.42, bends = K.toes || K.hoof ? [0.2, 0.3] : [0.3, 0.42, 0.3];
+        let d = [Math.sin(spread), Math.cos(spread), 0], p = kn.slice(); chain = [p];
+        seg.forEach((s, i) => { const b = bends[i] || 0.2, cb = Math.cos(b), sb = Math.sin(b); d = norm([d[0], d[1] * cb + d[2] * sb, d[2] * cb - d[1] * sb]); p = add(p, mul(d, s * L)); chain.push(p); });
+      }
+      // start the bone a little inside the palm so it grows out of it
+      const into = norm(sub(chain[0], chain[1]));
+      chain[0] = add(chain[0], mul(into, r0 * 0.9));
+      const pts = smooth(chain, 3), n = pts.length;
+      const rr = pts.map((_, i) => { const t = i / (n - 1); return r0 * (K.hoof ? lerp(1, 1.12, t) : K.toes ? lerp(1, 1.06, t) : lerp(1.06, 0.82, t)) * (K.knobs && Math.abs(t - 0.36) < 0.08 ? 1.12 : 1); });
+      const fcol = (t, ca, sa, p) => {
+        let c = col.fing; const palmSide = sa;   // ring frame: +sa is roughly the back of the hand
+        if (K.hoof) c = col.fing; else c = mix(c, col.palm, sstep(0.2, -0.7, palmSide) * (K.pads ? 0 : 0.5));
+        if (K.pads && t > 0.62 && palmSide < -0.25) c = col.pad;
+        if (K.nail && t > 0.78 && palmSide > 0.35) c = col.nail;
+        return grain(c, p);
+      };
+      const rings = m.tube(pts, rr, K.hoof ? 0.72 : 0.9, [-1, 0, 0], fcol, false, 'dome', 10);
+      fingerTips.push({ p: pts[n - 1], d: norm(sub(pts[n - 1], pts[n - 2])), r: rr[n - 1], chain, ring: rings[n - 1] });
+    });
+    // claws / nails: from the tip, along the last bone and curving toward the palm
+    if (K.claw) fingerTips.forEach(ft => {
+      const c = K.claw, up = ft.ring.Y;           // ring Y ~ back of the finger
+      const base = add(ft.p, add(mul(ft.d, -ft.r * 0.15), mul(up, ft.r * (c.nail ? 0.35 : 0.25))));
+      const bend = sub(mul(ft.d, Math.cos(c.curl)), mul(up, Math.sin(c.curl)));
+      const p1 = add(base, mul(ft.d, c.l * 0.45)), p2 = add(p1, mul(norm(add(ft.d, bend)), c.l * 0.35)), p3 = add(p2, mul(norm(bend), c.l * 0.3));
+      m.tube([base, p1, p2, p3], [c.r, c.r * 0.8, c.r * 0.5, c.r * 0.08], c.nail ? 0.55 : 0.85, up, (t, ca, sa, p) => grain(col.claw, p, 0.05), false, 'dome', 8);
+    });
+    // hooves: two halves, already coloured; a pair of dewclaws behind
+    if (K.dew) [-0.22, 0.22].forEach(sx => { const b = [sx * W, Lp * 0.78, -Tp * 0.42]; m.tube([b, add(b, [0, Lp * 0.12, -Tp * 0.28])], [fr * 0.45, fr * 0.1], 0.8, [1, 0, 0], () => col.claw, 'dome', 'dome', 8); });
+    // thumb
+    if (K.thumb && K.thumb.l > 0) {
+      const tr = K.thumb.r, tl = K.thumb.l, base0 = [-W * 0.22, Lp * 0.1, -Tp * 0.05], base = [-W * 0.46, Lp * 0.3, -Tp * 0.32];
+      let chain;
+      if (pose.kind === 'grip') {
+        const st = [base[1] - anchor[1], base[2] - anchor[2]];
+        const yz = walk(pr, st, [tl * 0.55, tl * 0.45], 1, Math.min(2.6, wrapMax));
+        chain = yz.map((q, i) => [base[0] + i * W * 0.12, q[0] + anchor[1], q[1] + anchor[2]]);
+      } else if (pose.kind === 'fist') {
+        const idx = fingerTips[0].chain, j = idx[Math.min(2, idx.length - 1)];
+        const tip = add(j, [W * 0.28, -Lp * 0.05, -fr * 1.9]);
+        chain = [base, add(mix(base, tip, 0.5), [0, 0, -Tp * 0.25]), tip];
+      } else {
+        const d1 = norm([-0.5, 0.6, -0.62]), d2 = norm([-0.12, 0.75, -0.65]);
+        chain = [base, add(base, mul(d1, tl * 0.55))]; chain.push(add(chain[1], mul(d2, tl * 0.45)));
+      }
+      const pts = smooth([base0].concat(chain), 3), n = pts.length;
+      const rr = pts.map((_, i) => { const t = i / (n - 1); return tr * (t < 0.3 ? lerp(1.55, 1.12, t / 0.3) : lerp(1.1, 0.85, (t - 0.3) / 0.7)); });
+      const rings = m.tube(pts, rr, 0.88, [-1, 0, 0], (t, ca, sa, p) => { let c = mix(col.fing, col.palm, sstep(0.2, -0.7, sa) * 0.5); if (K.nail && t > 0.8 && sa > 0.35) c = col.nail; if (K.pads && t > 0.7 && sa < -0.3) c = col.pad; return grain(c, p); }, false, 'dome', 10);
+      if (K.claw && !K.claw.nail) {
+        const R = rings[n - 1], d = norm(sub(pts[n - 1], pts[n - 2])), c = K.claw, up = R.Y, b0 = add(pts[n - 1], mul(up, R.r * 0.25));
+        const bend = sub(mul(d, Math.cos(c.curl)), mul(up, Math.sin(c.curl)));
+        const p1 = add(b0, mul(d, c.l * 0.4)), p2 = add(p1, mul(norm(add(d, bend)), c.l * 0.3)), p3 = add(p2, mul(norm(bend), c.l * 0.25));
+        m.tube([b0, p1, p2, p3], [c.r, c.r * 0.8, c.r * 0.5, c.r * 0.08], 0.85, up, (t, ca, sa, p) => grain(col.claw, p, 0.05), false, 'dome', 8);
+      }
+    }
+    const g = m.finish(mirror);
+    const mx = v => (mirror ? [-v[0], v[1], v[2]] : v);
+    g.anchor = mx(anchor); g.W0 = mx(W0); g.T0 = mx(T0m); g.WX = mx(wr[0].X);   // where the forearm starts, which way it leaves, its ring's x axis
+    return g;
+  }
+  const handCache = {};
+  // key: char | side | what it is holding  (w5R = right hand on weapon 5, open, fist)
+  function handGeom(key) {
+    if (handCache[key]) return handCache[key];
+    { const mm_ = /\|w(\d+)L$/.exec(key); if (mm_) resolveAuto(+mm_[1]); }
+    const [id, side, what] = key.split('|'), L = side === 'L';
+    let pose;
+    if (what === 'open' || what === 'fist') pose = { kind: what, dev: what === 'fist' ? [0.15, 0.05] : [0.1, 0.25] };
+    else {
+      const w = +what.slice(1, -1), hand = what.slice(-1), gr = GRIPS[w][hand], cls = CLS[CLS_OF[w]];
+      pose = { kind: 'grip', h: gr.h, M: gripFrame(gr), gs: cls.s, y: gr.y, wrap: gr.wrap, x: gr.x, dev: gr.dev };
+    }
+    return handCache[key] = buildHand(id, pose, L);
+  }
+  // two-handed melee weapons: turn the left hand round the handle until its forearm points the way ELBOW asks (worked out once per weapon)
+  const autoDone = {};
+  function resolveAuto(w) {
+    if (autoDone[w]) return; autoDone[w] = true;
+    const G = GRIPS[w], gr = G && G.L; if (!gr || !gr.auto) return;
+    const cl = CLS_OF[w], cls = CLS[cl], H = cls.hand; if (!H) return;
+    const Gf = gripFrame(G.R), R = mm(frameFB(H.f, H.b), [Gf[0], Gf[3], Gf[6], Gf[1], Gf[4], Gf[7], Gf[2], Gf[5], Gf[8]]);
+    const ax = norm(gr.h.ax), u = norm(gr.h.u), v = cross(ax, u), D = norm(ELBOW[cl][1]), dv = gr.dev || [0.25, 0.1], T0m = norm([-dv[0], -1, dv[1]]);
+    let best = -2, bb = null;
+    for (let i = 0; i < 72; i++) {
+      const ph = i / 72 * PI * 2, b = add(mul(u, Math.cos(ph)), mul(v, Math.sin(ph))), f = cross(b, ax);
+      const T0 = mv(mm(R, frameFB(f, b)), T0m), sc = dot(T0, D);
+      if (sc > best) { best = sc; bb = [f, b]; }
+    }
+    gr.f = bb[0]; gr.b = bb[1];
+  }
+  // the hand's frame in weapon space for a grip; the left hand is a mirror image, so its index finger sits on the other side of its x axis
+  function gripFrame(gr) { return frameFB(gr.f, gr.b); }
+
+  // ---- the forearm: a smooth tube, rebuilt every frame from the wrist to the elbow ----
+  const NR = 12, NS = 14;
+  // the forearm's colour at a point: t along it (0 = wrist, 1 = elbow), zc = +1 on the back of the arm .. -1 on the inside, ca the other way round.
+  // The hand's own wrist uses this too, so the two meet without a seam.
+  function armCol(id, t, ca, zc) {
+    const K = kitOf(id), A = K.arm;
+    let c = A.col2 ? mix(A.col, A.col2, sstep(-0.1, -0.8, zc)) : A.col;
+    const q = [ca * 0.03, t * A.Lf, zc * 0.03];
+    if (A.bands) { const sb = (t * A.Lf) / A.bands; c = (sb % 1) < 0.18 && t > 0.05 ? A.band : (t < 0.05 ? A.trim : c); }
+    if (A.spots && vnoise(q, 70) > 0.64) c = mix(c, K.col.spot, 0.75);
+    if (A.scales) c = shade(c, 0.86 + 0.24 * Math.abs(Math.sin(Math.atan2(zc, ca) * 6 + t * 40) * Math.sin(t * 90 + 0.5)));
+    const n = vnoise(q, 300) - 0.5;
+    return shade(c, 1 + n * (K.fur || 0.06) * 1.3);
+  }
+  function armColors(id, zs) {
+    const C = new Float32Array(NR * NS * 3); zs = zs || 1;
+    for (let i = 0; i < NR; i++) for (let k = 0; k < NS; k++) {
+      const t = Math.pow(i / (NR - 1), 1.25), a = k / NS * PI * 2, c = armCol(id, t, Math.cos(a), zs * Math.sin(a)), o = (i * NS + k) * 3;
+      C[o] = clamp(c[0] / 255, 0, 1); C[o + 1] = clamp(c[1] / 255, 0, 1); C[o + 2] = clamp(c[2] / 255, 0, 1);
+    }
+    return C;
+  }
+  function armIndex() {
+    const I = [];
+    for (let i = 0; i < NR - 1; i++) for (let k = 0; k < NS; k++) { const a = i * NS + k, b = i * NS + (k + 1) % NS, c = (i + 1) * NS + k, d = (i + 1) * NS + (k + 1) % NS; I.push(a, b, c, b, d, c); }
+    return new Uint16Array(I);
+  }
+  const fluffCache = {};
+  // fills P and N (Float32Array NR*NS*3) for this frame's arm a = layout().hands[k]
+  function armPose(id, a, P, N) {
+    const K = kitOf(id), A = K.arm, sc = a.sc;
+    const fl = fluffCache[id] || (fluffCache[id] = Array.from({ length: NR * NS }, (_, j) => 1 + (hash3([j * 0.37, j * 1.13, 7.1]) - 0.5) * 2 * (A.fluff || 0)));
+    const p0 = a.wrist, p3 = a.elbow, L = len(sub(p3, p0)), dirE = norm(sub(p3, p0));
+    const f = clamp(0.25 + dot(a.T0, dirE), 0, 1);
+    const p1 = add(p0, mul(a.T0, L * 0.38 * f)), p2 = add(p3, mul(sub(p1, p3), 0.3));
+    let X = a.X;
+    for (let i = 0; i < NR; i++) {
+      const t = Math.pow(i / (NR - 1), 1.25), u = 1 - t;
+      const c = [0, 1, 2].map(k => u * u * u * p0[k] + 3 * u * u * t * p1[k] + 3 * u * t * t * p2[k] + t * t * t * p3[k]);
+      const T = norm([0, 1, 2].map(k => 3 * u * u * (p1[k] - p0[k]) + 6 * u * t * (p2[k] - p1[k]) + 3 * t * t * (p3[k] - p2[k])));
+      X = norm(sub(X, mul(T, dot(X, T)))); const Y = cross(T, X);
+      const rx = lerp(A.rw, A.re, sstep(0, 0.85, t)) * sc, rz = rx * A.flat * lerp(1, 1.08, t);
+      for (let k = 0; k < NS; k++) {
+        const an = k / NS * PI * 2, ca = Math.cos(an), sa = Math.sin(an), o = (i * NS + k) * 3, fk = 1 + (fl[i * NS + k] - 1) * sstep(1, 4, i);
+        const n = norm(add(mul(X, ca / rx), mul(Y, sa / rz)));
+        P[o] = c[0] + (X[0] * rx * ca + Y[0] * rz * sa) * fk; P[o + 1] = c[1] + (X[1] * rx * ca + Y[1] * rz * sa) * fk; P[o + 2] = c[2] + (X[2] * rx * ca + Y[2] * rz * sa) * fk;
+        N[o] = n[0]; N[o + 1] = n[1]; N[o + 2] = n[2];
+      }
+    }
+  }
+
+  // ---- lay out the whole viewmodel for one frame ----
+  // o: { id, w (-1 = fists), aspect, fov (the game camera's), kick, chop, tilt:[roll, pitch], punch, lOff: [x,y,z] weapon-space shift of the left hand (pump),
+  //      rl: { f: 0..1, p: [x,y,z] weapon-space spot the left hand goes to while reloading } }
+  function layout(o) {
+    const id = o.id, K = kitOf(id), armed = o.w >= 0 && GRIPS[o.w];
+    const tMain = Math.tan((o.fov || 58) * 0.5 * PI / 180), tv = vmTan(o.aspect), k = tMain / tv;
+    const ak = clamp(o.aspect / 2.0, 0.62, 1.1), sk = clamp(0.62 + 0.38 * o.aspect / 1.6, 0.8, 1);   // narrow screens: everything in toward the middle, a bit smaller
+    const cl = armed ? CLS_OF[o.w] : 'fists', out = { cls: cl, vmK: k, vmTan: tv, gun: null, hands: [null, null] };
+    const handOut = (key, R, org, side, wristRest, Trest) => {
+      const g = handGeom(key), s = sk;
+      const Xc = colOf(R, 0), Yc = colOf(R, 1), Zc = colOf(R, 2);
+      const m = new Float32Array([Xc[0] * s, Xc[1] * s, Xc[2] * s, 0, Yc[0] * s, Yc[1] * s, Yc[2] * s, 0, Zc[0] * s, Zc[1] * s, Zc[2] * s, 0, org[0], org[1], org[2], 1]);
+      const T0 = norm(mv(R, g.T0)), wrist = add(org, mv(R, mul(g.W0, s))), X0 = norm(mv(R, g.WX));
+      const zs = dot(cross(T0, X0), Zc) >= 0 ? 1 : -1;
+      return { key, m, R, org, wrist, T0, X: X0, zs, sc: s, side };
+    };
+    let hands = [null, null];
+    const place = (kick, chop, tilt, punch, lOff, rl) => {
+      const res = [null, null];
+      if (armed) {
+        const cls = WPOSE[o.w] ? Object.assign({}, CLS[cl], WPOSE[o.w]) : CLS[cl], G = GRIPS[o.w], s = cls.s * sk;
+        const melee = cl === 'sword' || cl === 'hammer' || cl === 'knife';
+        let R, pos;
+        if (cls.hand) {                                   // hand first, then the weapon in it
+          const H = cls.hand, sw = cls.swing || [1, 0, 0];
+          let Rh = frameFB(H.f, H.b);
+          const ang = -chop * (cl === 'knife' ? 0.35 : 0.7) + kick * 0.2 - (tilt ? tilt[1] : 0);
+          if (ang) Rh = mm(axisM(norm(sw), ang), Rh);
+          const org = [H.p[0] * ak, H.p[1] + chop * (cl === 'knife' ? 0.01 : -0.03), H.p[2] - chop * (cl === 'knife' ? 0.13 : 0.05)];
+          const Gf = gripFrame(G.R), g = handGeom(`${id}|R|w${o.w}R`);
+          R = mm(Rh, [Gf[0], Gf[3], Gf[6], Gf[1], Gf[4], Gf[7], Gf[2], Gf[5], Gf[8]]);
+          pos = sub(add(org, mv(Rh, mul(g.anchor, sk))), mv(R, mul(G.R.h.c, s)));
+        } else {
+          const pr = [cls.p[0] * ak, cls.p[1], cls.p[2]];
+          const rx = cls.rx + kick * 0.3 - chop * 0.5 - (tilt ? tilt[1] : 0), rz = cls.rz + (tilt ? tilt[0] : 0), ry = PI + cls.ry;
+          R = rotM(rx, ry, rz);
+          const gR = mv(R, mul(G.R.h.c, s));
+          pos = [pr[0] - gR[0], pr[1] - gR[1], pr[2] - gR[2] + kick * 0.045 - chop * 0.05];
+        }
+        const toCam = p => add(mv(R, mul(p, s)), pos);
+        res.gun = { pos, scale: s, R };
+        resolveAuto(o.w);
+        for (const [k, hn] of [[0, 'R'], [1, 'L']]) {
+          const gr = G[hn]; if (!gr) continue;
+          const L = hn === 'L', key = `${id}|${hn}|w${o.w}${hn}`, g = handGeom(key);
+          let Rh = mm(R, gripFrame(gr)), c = gr.h.c;
+          if (L && lOff) c = add(c, lOff);
+          if (L && rl && rl.f > 0) {                     // reloading: the hand goes to the magazine (palm up, under it) and comes back
+            const RU = mm(R, frameFB([0.25, 0.1, 1], [-0.25, -1, 0]));
+            Rh = slerpM(Rh, RU, sstep(0, 1, rl.f) * 0.85); c = mix(c, rl.p, sstep(0, 1, rl.f));
+          }
+          const org = sub(toCam(c), mv(Rh, mul(g.anchor, sk)));
+          res[k] = [key, Rh, org];
+        }
+        if (!G.L && FREE[cl]) {
+          const fr = FREE[cl], Rh = frameFB(fr.f, fr.b), p = [fr.p[0] * ak, fr.p[1], fr.p[2]];
+          res[1] = [`${id}|L|${fr.pose}`, Rh, p];
+        }
+      } else {
+        const pn = punch || 0;
+        const Rr = frameFB([-0.25, 0.2, -1], [0.85, 0.45, 0.1]), Rl = frameFB([0.25, 0.2, -1], [-0.85, 0.45, 0.1]);
+        res[0] = [`${id}|R|fist`, Rr, [0.14 * ak, -0.095 + pn * 0.02, -0.4 - pn * 0.22]];
+        res[1] = [`${id}|L|fist`, Rl, [-0.15 * ak, -0.1, -0.42 + pn * 0.03]];
+      }
+      return res;
+    };
+    const live = place(o.kick || 0, o.chop || 0, o.tilt, o.punch, o.lOff, o.rl), rest = place(0, 0, null, 0, null, null);
+    if (live.gun) { const g = live.gun, R = g.R, sc = g.scale;
+      out.gun = { pos: g.pos, quat: m2q(R), scale: sc, m: new Float32Array([R[0] * sc, R[3] * sc, R[6] * sc, 0, R[1] * sc, R[4] * sc, R[7] * sc, 0, R[2] * sc, R[5] * sc, R[8] * sc, 0, g.pos[0], g.pos[1], g.pos[2], 1]) }; }
+    for (let k = 0; k < 2; k++) {
+      const h = live[k]; if (!h) continue;
+      const side = k === 0 ? 1 : -1, hr = rest[k] || h;
+      const ho = handOut(h[0], h[1], h[2], side), hro = handOut(hr[0], hr[1], hr[2], side);
+      const D = (ELBOW[cl] || ELBOW.rifle)[k];
+      const eRest = add(hro.wrist, mul(norm(add(hro.T0, mul(norm(D), 1.2))), K.arm.Lf * sk * (1 + 0.5 * clamp(1.5 - o.aspect, 0, 1))));   // tall screens show more below the hands: longer forearms
+      ho.elbow = add(eRest, mul(sub(ho.wrist, hro.wrist), 0.6));
+      out.hands[k] = ho;
+    }
+    return out;
+  }
+  const clearCache = () => { for (const k in handCache) delete handCache[k]; for (const k in autoDone) delete autoDone[k]; };
+  return { clearCache, layout, m2q, handGeom, armPose, armColors, armIndex, NR, NS, rotM, mv, CLS, CLS_OF, GRIPS, KITS, FREE, vmTan, gripFrame, profile };
+})();
+
+// First-person viewmodel: your weapon (or your fists) in front of the camera.
+// A separate copy of the gun — the one on your character stays hidden with the body —
+// so switching weapons or characters never disturbs the third-person rig.
+const vm = new THREE.Group(); vm.visible = false; scene.add(vm);
+const vmLight = new THREE.PointLight(0xfff2dd, 0.55, 1.2); vmLight.position.set(0, 0.25, 0.1); vm.add(vmLight);   // soft fill so the gun reads in shade
+const vmGunHolder = new THREE.Group(); vm.add(vmGunHolder);   // holds the gun; FPL places it
+const vmGunCache = {};
+let vmWeapon = -2, vmChar = -1, vmFlash = null;
+function vmNoShadow(g) { g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; } }); }
+function syncVm() {
+  // (re)build what the viewmodel shows when the weapon or character changes
+  const w = me.weapon;
+  if (w === vmWeapon && me.char === vmChar) return;
+  vmGunHolder.clear(); vmFlash = null;
+  if (w >= 0) {
+    let g = vmGunCache[w];
+    if (!g) { g = vmGunCache[w] = makeGun(w); g.scale.setScalar(1); g.rotation.x = 0; vmNoShadow(g); }   // the holder sizes it (FPL); no carry tilt in first person
+    vmGunHolder.add(g);
+    vmFlash = g.userData.flash || null;
+    if (vmFlash) vmFlash.visible = false;
+  }
+  vmWeapon = w; vmChar = me.char;
+}
+
+// First-person arms: each hand is built for what it holds (FPL.handGeom: palm, jointed fingers wrapped round the actual grip,
+// thumb, and that animal's claws / nails / hooves / paw pads), and each forearm is a smooth tube from the wrist down to an
+// elbow below the edge of the screen, re-shaped every frame. Everything is coloured like the character.
+let fpArms = null;
+function fpHandGeo(key) {
+  const c = fpArms.geos; if (c[key]) return c[key];
+  const d = FPL.handGeom(key), g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(d.P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(d.N, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(d.C, 3)); g.setIndex(new THREE.BufferAttribute(d.I, 1));
+  g.computeBoundingSphere();
+  return c[key] = g;
+}
+function buildFpArms() {
+  const id = CH[me.char].id, mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const nv = FPL.NR * FPL.NS, idx = FPL.armIndex();
+  const parts = [0, 1].map(() => {
+    const hand = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+    hand.matrixAutoUpdate = false; hand.frustumCulled = false; hand.castShadow = false; hand.receiveShadow = false; hand.visible = false; vm.add(hand);
+    const P = new Float32Array(nv * 3), N = new Float32Array(nv * 3), ag = new THREE.BufferGeometry();
+    const pa = new THREE.BufferAttribute(P, 3), na = new THREE.BufferAttribute(N, 3);
+    if (pa.setUsage) { pa.setUsage(THREE.DynamicDrawUsage); na.setUsage(THREE.DynamicDrawUsage); }
+    ag.setAttribute('position', pa); ag.setAttribute('normal', na); ag.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); ag.setIndex(new THREE.BufferAttribute(idx, 1));
+    const arm = new THREE.Mesh(ag, mat); arm.frustumCulled = false; arm.castShadow = false; arm.receiveShadow = false; arm.visible = false; vm.add(arm);
+    return { hand, arm, ag, P, N, key: null, zs: 0 };
+  });
+  fpArms = { char: me.char, id, parts, mat, geos: {} };
+}
+function ensureFpArms() {
+  if (fpArms && fpArms.char === me.char) return;
+  if (fpArms) {
+    for (const p of fpArms.parts) { vm.remove(p.hand); vm.remove(p.arm); p.ag.dispose(); }
+    for (const k in fpArms.geos) fpArms.geos[k].dispose();
+    fpArms.mat.dispose(); fpArms = null;
+  }
+  buildFpArms();
+}
+// Lay out the whole viewmodel for this frame (FPL does the maths): the gun, both hands on their grips, the forearms.
+function updateFpView(kick, chop, tilt) {
+  const sq = me.sq, w = me.weapon, g = w >= 0 ? vmGunCache[w] : null;
+  let lOff = null, rl = null;
+  if (g && sq) {
+    const T = g.userData.T, it = GRIP_IDLE[w] && T && T[GRIP_IDLE[w]];
+    if (it) lOff = [it.position.x, it.position.y, it.position.z];          // the left hand rides the shotgun's pump
+    const rh = RELOAD_HAND[w], f = sq.rlK || 0;
+    if (rh && f > 0.001) {                                                  // reloading: the left hand fetches the magazine (and comes back with it)
+      const tg = rh[1] && T && T[rh[1]];
+      rl = { f, p: [rh[0][0] + (tg ? tg.position.x : 0), rh[0][1] + (tg ? tg.position.y : 0), rh[0][2] + (tg ? tg.position.z : 0)] };
+    }
+  }
+  const id = CH[me.char].id;
+  const lay = FPL.layout({ id, w: g ? w : -1, aspect: camera.aspect, fov: camera.fov, kick, chop, tilt, punch: sq ? (sq.atk || 0) : 0, lOff, rl });
+  vm.scale.set(lay.vmK, lay.vmK, 1);                                        // the weapon is seen through a narrower lens than the world
+  if (lay.gun) { const G = lay.gun; vmGunHolder.position.set(G.pos[0], G.pos[1], G.pos[2]); vmGunHolder.quaternion.set(G.quat[0], G.quat[1], G.quat[2], G.quat[3]); vmGunHolder.scale.setScalar(G.scale); }
+  if (!fpArms) return;
+  for (let k = 0; k < 2; k++) {
+    const p = fpArms.parts[k], h = lay.hands[k];
+    if (!h) { p.hand.visible = p.arm.visible = false; continue; }
+    if (p.key !== h.key) { p.hand.geometry = fpHandGeo(h.key); p.key = h.key; }
+    if (p.zs !== h.zs) { const ca = p.ag.getAttribute('color'); ca.array.set(FPL.armColors(id, h.zs)); ca.needsUpdate = true; p.zs = h.zs; }
+    p.hand.matrix.fromArray(h.m); p.hand.matrixWorldNeedsUpdate = true;
+    FPL.armPose(id, h, p.P, p.N);
+    p.ag.getAttribute('position').needsUpdate = true; p.ag.getAttribute('normal').needsUpdate = true;
+    p.hand.visible = p.arm.visible = true;
+  }
+}
+
 function resetWeapons() {
   me.owned = WEAPONS.map(() => false); me.ammo = WEAPONS.map(() => 0); me.mag = WEAPONS.map(() => 0); me.rld = 0; me.rldW = -1; me.rlWait = 0; me.weapon = -1; me.freeze = me.burn = me.flameT = 0; me.sh = me.spT = me.dqT = 0;
   if (me.sq) me.sq.rl = null;
@@ -2404,6 +3101,7 @@ function tryFire() {
     dir = V(dx * hs, vy, dz * hs); speed = dir.length(); dir.multiplyScalar(1 / speed);
   } else {
     if (aiming) dir = V(remote.pos.x, remote.pos.y + rh, remote.pos.z).sub(muzzle).normalize();
+    else if (fpMode) dir = fpLook(V());   // first person: shoot where you are looking, up/down included
     else dir = V(Math.sin(me.sq.yaw), 0, Math.cos(me.sq.yaw));
     if (def.spread && !def.pellets) { dir.x += (Math.random() - .5) * def.spread * 2; dir.y += (Math.random() - .5) * def.spread; dir.z += (Math.random() - .5) * def.spread * 2; dir.normalize(); }
   }
@@ -2534,7 +3232,7 @@ camZone.addEventListener('pointerdown', e => { if (cam.dragId !== null) releaseC
 window.addEventListener('pointermove', e => {
   if (e.pointerId !== cam.dragId) return;
   e.preventDefault();
-  cam.yaw -= (e.clientX - cam.lastX) * 0.0085; cam.pitch = Math.min(1.15, Math.max(0.05, cam.pitch + (e.clientY - cam.lastY) * 0.005));
+  cam.yaw -= (e.clientX - cam.lastX) * 0.0085; if (fpMode) fpPitch = Math.min(FP_PITCH_MAX, Math.max(-FP_PITCH_MAX, fpPitch - (e.clientY - cam.lastY) * 0.005)); else cam.pitch = Math.min(1.15, Math.max(0.05, cam.pitch + (e.clientY - cam.lastY) * 0.005));
   cam.lastX = e.clientX; cam.lastY = e.clientY; cam.idle = 0;
 }, { passive: false });
 const endCam = e => { if (e.pointerId === cam.dragId) releaseCam(); };
@@ -2621,11 +3319,12 @@ function updateMe(dt) {
   else if (!me.grounded) me.stepD = 1.4;
   me.aimHold -= dt;
   if (me.aimHold > 0) me.sq.yaw = lerpAngle(me.sq.yaw, me.aimYaw, dt * 20);
+  else if (fpMode) me.sq.yaw = lerpAngle(me.sq.yaw, cam.yaw + Math.PI, dt * 20);   // first person: face where you look, so shots go where you aim
   else if (hs > 0.4) me.sq.yaw = lerpAngle(me.sq.yaw, Math.atan2(me.vel.x, me.vel.z), dt * 12);
   me.sq.root.rotation.y = me.sq.yaw; me.sq.root.position.copy(me.pos);
   // gently swing the camera behind you while running forward
   cam.idle += dt;
-  if (cam.dragId === null && cam.idle > 1.2 && mv.fwd > 0.5 && hs > 1) cam.yaw = lerpAngle(cam.yaw, Math.atan2(-me.vel.x, -me.vel.z), dt * 0.9);
+  if (!fpMode && cam.dragId === null && cam.idle > 1.2 && mv.fwd > 0.5 && hs > 1) cam.yaw = lerpAngle(cam.yaw, Math.atan2(-me.vel.x, -me.vel.z), dt * 0.9);
 
   if (me.invuln > 0) { me.invuln -= dt; me.sq.rig.visible = me.invuln <= 0 || Math.floor(me.invuln * 12) % 2 === 0; } else me.sq.rig.visible = true;
 
@@ -2901,7 +3600,11 @@ $('soundBtn').onclick = () => {   // all on -> sounds only -> all off -> all on
   if (audioPref.sfx && audioPref.music) audioPref.music = false; else if (audioPref.sfx) audioPref.sfx = false; else { audioPref.sfx = true; audioPref.music = true; }
   unlockAudio(); applyAudioPref(); sfx('ui');
 };
+$('fpBtn').onclick = () => { setFp(!fpMode); sfx('ui'); };
+$('fpTog1').onclick = () => { setFp(true); sfx('ui'); };
+$('fpTog3').onclick = () => { setFp(false); sfx('ui'); };
 updateAudioUi();
+updateFpUi();
 $('winMenuBtn').onclick = goToMenu;
 $('againBtn').onclick = () => {
   if (armedMode()) {
@@ -3246,15 +3949,39 @@ function frameBody() {
 
   // camera
   if (playing) {
-    const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), hh = CH[me.char].meta.hit, up = Math.max(0.7, hh * 0.75), dist = cam.dist * (camera.aspect < 1 ? 1.12 : 1) * (0.85 + hh * 0.15);
-    camTarget.set(me.pos.x + Math.sin(cam.yaw) * cp * dist, me.pos.y + up + 0.2 + sp * dist, me.pos.z + Math.cos(cam.yaw) * cp * dist);
-    const minY = Math.max(H(camTarget.x, camTarget.z), WATER_Y) + 0.6; if (camTarget.y < minY) camTarget.y = minY;
-    camera.position.lerp(camTarget, 1 - Math.exp(-dt * 8));
-    lookTarget.set(me.pos.x, me.pos.y + up, me.pos.z);
-    camLook.lerp(lookTarget, 1 - Math.exp(-dt * 12));
-    camera.lookAt(camLook);
+    if (fpMode) {
+      // first person: the camera is your eyes — set directly, no smoothing, or the view lags behind your finger
+      const hh = CH[me.char].meta.hit, eye = me.pos.y + Math.max(0.7, hh * 0.85);
+      camera.position.set(me.pos.x, eye, me.pos.z);
+      fpLook(tmpV); camLook.set(me.pos.x + tmpV.x * 10, eye + tmpV.y * 10, me.pos.z + tmpV.z * 10);
+      camera.lookAt(camLook);
+      if (me.sq) { me.sq.root.visible = false; me.sq.tag.sprite.visible = false; }   // you can't see yourself in first person
+      // the viewmodel: your weapon in front of the camera, held in your character's own hands (see FPL)
+      syncVm();
+      vm.position.copy(camera.position); vm.quaternion.copy(camera.quaternion);
+      vm.visible = !me.dead;
+      const sq = me.sq, wd = wDef(me.weapon);
+      const kick = sq.recoil, chop = (me.weapon >= 0 && wd.melee) ? sq.atk * (wd.swing || 1.5) : 0;
+      const tl = RL_TILT[me.weapon], rlK = tl ? sq.rlK : 0;
+      vmGunHolder.visible = me.weapon >= 0;
+      if (me.weapon >= 0 && vmFlash) { vmFlash.visible = sq.mfT > 0; if (vmFlash.visible) { const k = (wd.mf || 1) * (0.8 + Math.random() * 0.45); vmFlash.rotation.z = Math.random() * 6.28; vmFlash.scale.set(k, k, k * (0.8 + Math.random() * 0.5)); } }
+      ensureFpArms();
+      updateFpView(kick, chop, tl ? [tl[0] * rlK, tl[1] * rlK] : null);
+    } else {
+      const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), hh = CH[me.char].meta.hit, up = Math.max(0.7, hh * 0.75), dist = cam.dist * (camera.aspect < 1 ? 1.12 : 1) * (0.85 + hh * 0.15);
+      camTarget.set(me.pos.x + Math.sin(cam.yaw) * cp * dist, me.pos.y + up + 0.2 + sp * dist, me.pos.z + Math.cos(cam.yaw) * cp * dist);
+      const minY = Math.max(H(camTarget.x, camTarget.z), WATER_Y) + 0.6; if (camTarget.y < minY) camTarget.y = minY;
+      camera.position.lerp(camTarget, 1 - Math.exp(-dt * 8));
+      lookTarget.set(me.pos.x, me.pos.y + up, me.pos.z);
+      camLook.lerp(lookTarget, 1 - Math.exp(-dt * 12));
+      camera.lookAt(camLook);
+      if (me.sq) { me.sq.root.visible = !me.dead; me.sq.tag.sprite.visible = armedMode(); }
+      vm.visible = false;
+    }
+    const wantX = fpMode; if (wantX !== xhairOn) { xhairOn = wantX; const x = $('crosshair'); if (x) x.style.display = wantX ? 'block' : 'none'; }
     hudT -= dt; if (hudT <= 0) { hudT = 0.1; updateCompass(); }
   } else {
+    vm.visible = false;
     const a = t * 0.06;
     camera.position.set(Math.sin(a) * 70, 26, Math.cos(a) * 70 - 10);
     camLook.set(0, 6, -10); camera.lookAt(camLook);
