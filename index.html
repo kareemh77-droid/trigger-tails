@@ -38,9 +38,6 @@
   /* HUD */
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 12; }
   .chip { background: rgba(255,251,240,.9); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
-  #menuBtn { pointer-events: auto; position: absolute; top: calc(12px + var(--safe-t)); left: calc(12px + var(--safe-l)); border: 0; padding: 9px 14px; font-size: 15px; font-weight: 700; color: #5a3a1a; touch-action: manipulation; }
-  #soundBtn { pointer-events: auto; position: absolute; top: calc(80px + var(--safe-t)); right: calc(12px + var(--safe-r)); width: 42px; height: 38px; border: 0; padding: 0; font-size: 20px; touch-action: manipulation; }
-  #fpBtn { pointer-events: auto; position: absolute; top: calc(128px + var(--safe-t)); right: calc(12px + var(--safe-r)); width: 56px; height: 38px; border: 0; padding: 0; font-size: 13px; font-weight: 800; color: #5a3a1a; touch-action: manipulation; }
   .b-bot { background: #7a52c7; }
   #lvlRow { display: flex; gap: 8px; margin-top: 8px; }
   #mapRow { display: flex; gap: 8px; margin-top: 4px; }
@@ -56,22 +53,45 @@
   #audioRow { display: flex; gap: 8px; margin-top: 10px; }
   .tog { flex: 1; border: 2px solid #e2d6bc; border-radius: 14px; background: #fff; color: #6b5c44; font-size: 15px; font-weight: 700; padding: 10px 4px; cursor: pointer; touch-action: manipulation; font-family: inherit; }
   .tog:active { transform: scale(.97); }
-  #acornBox { position: absolute; top: calc(12px + var(--safe-t)); right: calc(12px + var(--safe-r)); padding: 7px 13px; font-weight: 800; color: #6b3518; font-size: 19px; text-align: right; }
-  #partnerAcorns { font-size: 13px; font-weight: 700; color: #6b6f78; }
-  #hpWrap { position: absolute; top: calc(58px + var(--safe-t)); left: calc(12px + var(--safe-l)); padding: 6px 10px; width: 160px; }
-  #hpLabel { font-size: 12px; font-weight: 800; color: #5a3a1a; display: flex; justify-content: space-between; }
-  #hpBar { height: 10px; border-radius: 6px; background: #e6d9c0; overflow: hidden; margin-top: 3px; }
+  #partnerAcorns { font-size: 11px; font-weight: 700; color: #6b6f78; }
+  /* HUD (v37): menu + health top-left, the match score top-centre, objective top-right, weapon badge under the thumb buttons */
+  #hudTL { position: absolute; top: calc(10px + var(--safe-t)); left: calc(10px + var(--safe-l)); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  #sysRow { display: flex; gap: 6px; }
+  #menuBtn, #soundBtn, #fpBtn { pointer-events: auto; border: 0; height: 32px; padding: 0 11px; font-size: 13px; font-weight: 800; color: #5a3a1a; touch-action: manipulation; font-family: inherit; }
+  #soundBtn { width: 34px; padding: 0; font-size: 16px; }
+  #fpBtn { padding: 0 9px; font-size: 12px; }
+  #hpWrap { padding: 5px 9px 6px; width: 132px; }
+  #hpLabel { font-size: 11px; font-weight: 800; color: #5a3a1a; display: flex; justify-content: space-between; }
+  #hpBar { height: 8px; border-radius: 5px; background: #e6d9c0; overflow: hidden; margin-top: 3px; }
+  #buffRow { display: flex; gap: 5px; flex-wrap: wrap; max-width: 220px; }
+  #hudTR { position: absolute; top: calc(10px + var(--safe-t)); right: calc(10px + var(--safe-r)); display: flex; align-items: center; gap: 6px; }
+  #compass { display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 5px; font-weight: 800; color: #5a3a1a; font-size: 13px; }
+  #compassArrow { width: 22px; height: 22px; display: block; transition: transform .1s linear; }
+  #acornBox { padding: 4px 10px; font-weight: 800; color: #6b3518; font-size: 14px; text-align: right; white-space: nowrap; }
+  #scoreBox { position: absolute; top: calc(10px + var(--safe-t)); left: 50%; transform: translateX(-50%); padding: 4px 11px; font-size: 12px; font-weight: 800; color: #5a3a1a; white-space: nowrap; }
+  #scoreBox .gg { display: flex; align-items: center; gap: 6px; }
+  #scoreBox .lv { min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
+  #scoreBox .bar { width: 60px; height: 7px; border-radius: 4px; background: #e6d9c0; overflow: hidden; }
+  #scoreBox .bar i { display: block; height: 100%; width: 0; background: #3a8fe0; transition: width .3s; }
+  #scoreBox .bar.o i { background: #e5534b; }
+  #scoreBox .vs { font-size: 10px; opacity: .55; }
+  #ggBanner { position: absolute; top: calc(48px + var(--safe-t)); left: 50%; transform: translate(-50%, -8px); background: linear-gradient(90deg, rgba(224,125,32,.96), rgba(244,172,44,.96)); color: #fff; font-weight: 800; font-size: 15px; padding: 7px 16px; border-radius: 18px; box-shadow: 0 3px 10px rgba(0,0,0,.25); opacity: 0; transition: opacity .25s, transform .25s; white-space: nowrap; pointer-events: none; }
+  #ggBanner.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (max-width: 720px) { #scoreBox .nm { display: none; } #scoreBox .bar { width: 40px; } #fpBtn { padding: 0 7px; font-size: 11px; } }
+  @media (max-width: 560px) {                     /* tall phones: the score drops under the objective, so nothing collides */
+    #scoreBox { top: calc(46px + var(--safe-t)); left: auto; right: calc(10px + var(--safe-r)); transform: none; font-size: 11px; padding: 4px 8px; }
+    #scoreBox .bar { width: 34px; } #scoreBox .lv { min-width: 26px; }
+    #ggBanner { top: calc(80px + var(--safe-t)); font-size: 13px; }
+    #acornBox { font-size: 13px; padding: 4px 8px; }
+    #hpWrap { width: 118px; }
+    #toast { top: calc(108px + var(--safe-t)); }
+  }
   #hpFill { height: 100%; width: 100%; background: #4caf50; transition: width .15s, background .15s; }
   #shBar { height: 6px; border-radius: 4px; background: rgba(120,160,200,.25); overflow: hidden; margin-top: 3px; }
   #shFill { height: 100%; width: 0%; background: #3aa0ff; transition: width .15s; }
-  #buffRow { position: absolute; top: calc(140px + var(--safe-t)); left: calc(12px + var(--safe-l)); display: flex; gap: 6px; flex-wrap: wrap; max-width: 260px; }
   .buff { background: rgba(255,251,240,.92); border: 2px solid #ccc; border-radius: 12px; padding: 3px 9px; font-size: 13px; font-weight: 800; color: #5a3a1a; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
-  #scoreBox { position: absolute; top: calc(104px + var(--safe-t)); left: calc(12px + var(--safe-l)); padding: 5px 10px; font-size: 13px; font-weight: 800; color: #5a3a1a; }
-  #netStatus { position: absolute; top: calc(12px + var(--safe-t)); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.45); color: #fff; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 20px; white-space: nowrap; margin-top: 48px; }
-  #compass { position: absolute; top: calc(12px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 5px 12px 5px 8px; font-weight: 800; color: #5a3a1a; font-size: 15px; }
-  #compassArrow { width: 26px; height: 26px; display: block; transition: transform .1s linear; }
-  #camZone { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
-  #toast { position: absolute; top: 32%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.6); color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 16px; font-size: 17px; transition: opacity .3s; opacity: 0; white-space: nowrap; }
+  #netStatus { position: absolute; top: calc(12px + var(--safe-t)); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.45); color: #fff; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 20px; white-space: nowrap; margin-top: 78px; }
+  #toast { position: absolute; top: calc(86px + var(--safe-t)); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.6); color: #fff; font-weight: 700; padding: 8px 16px; border-radius: 16px; font-size: 16px; transition: opacity .3s; opacity: 0; width: max-content; max-width: calc(100vw - 28px); text-align: center; white-space: normal; pointer-events: none; }
   #hitMark { position: fixed; left: 50%; top: 42%; width: 0; height: 0; pointer-events: none; z-index: 10; opacity: 0; }
   #hitMark i { position: absolute; left: -8px; top: -2.5px; width: 16px; height: 5px; border-radius: 3px; background: #fff; box-shadow: 0 0 0 1.5px rgba(0,0,0,.55), 0 0 8px rgba(255,255,255,.6); }
   #hitMark i:nth-child(1) { transform: translate(-17px, -17px) rotate(45deg); }
@@ -87,41 +107,30 @@
   #hurt { position: fixed; inset: 0; pointer-events: none; z-index: 9; background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(220,0,0,.55) 100%); opacity: 0; transition: opacity .35s; }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px; border-radius: 50%; border: 2px solid rgba(255,255,255,.8); display: none; }
 
-  /* Touch controls */
+  /* Touch controls (v37, Call of Duty: Mobile style): left half = move stick, right half = drag to look,
+     FIRE / JUMP / RELOAD in an arc under the right thumb (FIRE can drag too, to aim while shooting), weapon badge underneath */
   #controls { position: fixed; inset: 0; z-index: 11; pointer-events: none; }
-  #stickZone { position: absolute; left: 0; bottom: 0; width: 50%; height: 55%; pointer-events: auto; touch-action: none; }
+  #camZone { position: absolute; left: 50%; right: 0; top: 0; bottom: 0; pointer-events: auto; touch-action: none; }
+  #stickZone { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; pointer-events: auto; touch-action: none; }
   #stickBase { position: absolute; left: calc(28px + var(--safe-l)); bottom: calc(28px + var(--safe-b)); width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,.22); border: 3px solid rgba(255,255,255,.55); pointer-events: none; }
   #stickKnob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: 0 2px 8px rgba(0,0,0,.25); }
-  .rbtn { position: absolute; border-radius: 50%; border: 3px solid rgba(255,255,255,.7); color: #fff; font-weight: 800; letter-spacing: 1px; pointer-events: auto; touch-action: none; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
-  #jumpBtn { right: calc(24px + var(--safe-r)); bottom: calc(30px + var(--safe-b)); width: 104px; height: 104px; background: rgba(232,128,48,.85); font-size: 20px; }
-  #fireBtn { right: calc(140px + var(--safe-r)); bottom: calc(24px + var(--safe-b)); width: 92px; height: 92px; background: rgba(200,40,40,.85); font-size: 18px; }
-  #weapBtn { position: absolute; right: calc(24px + var(--safe-r)); bottom: calc(148px + var(--safe-b)); border: 3px solid rgba(255,255,255,.7); border-radius: 16px; background: rgba(40,40,48,.75); color: #fff; padding: 8px 12px; pointer-events: auto; touch-action: none; text-align: center; min-width: 104px; font-weight: 800; font-size: 15px; line-height: 1.15; }
-  @media (max-width: 520px) { #fireBtn { right: calc(30px + var(--safe-r)); bottom: calc(150px + var(--safe-b)); } #weapBtn { bottom: calc(256px + var(--safe-b)); } }
-  #weapBtn small { display: block; font-size: 12px; font-weight: 700; opacity: .85; }
+  .rbtn { position: absolute; border-radius: 50%; border: 3px solid rgba(255,255,255,.7); color: #fff; font-weight: 800; letter-spacing: 1px; pointer-events: auto; touch-action: none; box-shadow: 0 4px 12px rgba(0,0,0,.25); font-family: inherit; }
+  #fireBtn { right: calc(45px + var(--safe-r)); bottom: calc(90px + var(--safe-b)); width: 92px; height: 92px; background: rgba(214,48,48,.62); border-color: rgba(255,255,255,.78); font-size: 17px; }
+  #jumpBtn { right: calc(145px + var(--safe-r)); bottom: calc(30px + var(--safe-b)); width: 76px; height: 76px; background: rgba(232,128,48,.7); font-size: 14px; }
+  #reloadBtn { right: calc(55px + var(--safe-r)); bottom: calc(185px + var(--safe-b)); width: 62px; height: 62px; background: rgba(36,104,186,.72); font-size: 9px; line-height: 1.05; padding: 0; letter-spacing: .5px; }
+  #reloadBtn span { display: block; font-size: 21px; }
+  #reloadBtn.busy { filter: grayscale(.55) brightness(.9); }
+  #reloadBtn::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity .12s;
+    background: conic-gradient(#ffc233 var(--rl, 0%), rgba(255,255,255,.16) 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); }
+  #reloadBtn.busy::after { opacity: 1; }
+  #weapBtn { position: absolute; right: calc(45px + var(--safe-r)); bottom: calc(16px + var(--safe-b)); width: 96px; height: 44px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid rgba(255,255,255,.6); border-radius: 12px; background: rgba(30,32,40,.64); color: #fff; padding: 2px 6px; pointer-events: auto; touch-action: none; text-align: center; font-weight: 800; font-size: 12px; line-height: 1.15; font-family: inherit; }
+  #weapBtn .wn { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #weapBtn small { display: block; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; opacity: .95; }
   .rbtn.down, #weapBtn.down { transform: scale(.93); filter: brightness(.9); }
   #weapBtn.empty small { color: #ff8a80; }
-  #weapBtn.reloading { background: linear-gradient(90deg, rgba(255,179,0,.62) var(--rl, 0%), rgba(40,40,48,.75) var(--rl, 0%)); }
-  #reloadBtn { right: calc(246px + var(--safe-r)); bottom: calc(30px + var(--safe-b)); width: 68px; height: 68px; background: rgba(36,104,186,.88); font-size: 11px; line-height: 1.1; padding: 0; }
-  #reloadBtn span { display: block; font-size: 22px; }
-  #reloadBtn.busy { filter: grayscale(.75) brightness(.85); }
-  @media (max-width: 520px) { #reloadBtn { right: calc(132px + var(--safe-r)); bottom: calc(158px + var(--safe-b)); } }
-  /* First person: a second stick on the right turns the camera, and the buttons move up out of its way */
-  #lookZone { position: absolute; right: 0; bottom: 0; width: 50%; height: 55%; pointer-events: auto; touch-action: none; display: none; }
-  #lookBase { position: absolute; right: calc(28px + var(--safe-r)); bottom: calc(28px + var(--safe-b)); width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,.22); border: 3px solid rgba(255,255,255,.55); pointer-events: none; }
-  #lookKnob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: 0 2px 8px rgba(0,0,0,.25); }
-  body.fp #lookZone { display: block; }
-  body.fp #jumpBtn { right: calc(176px + var(--safe-r)); bottom: calc(34px + var(--safe-b)); width: 88px; height: 88px; font-size: 18px; }
-  body.fp #fireBtn { right: calc(90px + var(--safe-r)); bottom: calc(172px + var(--safe-b)); }
-  body.fp #reloadBtn { right: calc(196px + var(--safe-r)); bottom: calc(176px + var(--safe-b)); }
-  body.fp #weapBtn { right: calc(196px + var(--safe-r)); bottom: calc(250px + var(--safe-b)); }
-  @media (max-width: 520px) {
-    body.fp #stickBase { width: 112px; height: 112px; left: calc(16px + var(--safe-l)); bottom: calc(24px + var(--safe-b)); }
-    body.fp #lookBase { width: 112px; height: 112px; right: calc(16px + var(--safe-r)); bottom: calc(24px + var(--safe-b)); }
-    body.fp #jumpBtn { right: auto; left: 50%; margin-left: -38px; bottom: calc(34px + var(--safe-b)); width: 76px; height: 76px; font-size: 16px; }
-    body.fp #fireBtn { right: calc(24px + var(--safe-r)); bottom: calc(178px + var(--safe-b)); }
-    body.fp #reloadBtn { right: calc(128px + var(--safe-r)); bottom: calc(186px + var(--safe-b)); }
-    body.fp #weapBtn { right: calc(24px + var(--safe-r)); bottom: calc(282px + var(--safe-b)); }
-  }
+  @media (max-width: 560px) and (orientation: portrait) { #stickBase { width: 104px; height: 104px; left: calc(14px + var(--safe-l)); bottom: calc(24px + var(--safe-b)); } #stickKnob { width: 50px; height: 50px; margin: -25px 0 0 -25px; } }
+  #weapBtn.reloading { background: linear-gradient(90deg, rgba(255,179,0,.62) var(--rl, 0%), rgba(30,32,40,.64) var(--rl, 0%)); }
   #charGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 6px; }
   .ch { position: relative; border: 2px solid #e2d6bc; border-radius: 12px; background: #fff; padding: 3px 1px 3px; font-size: 11px; font-weight: 700; color: #6b5c44; touch-action: manipulation; cursor: pointer; line-height: 1.1; font-family: inherit; }
   .ch img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; pointer-events: none; }
@@ -141,14 +150,17 @@
 
 <!-- HUD -->
 <div id="hud" class="hidden">
-  <button id="menuBtn" class="chip">☰ Menu</button>
-  <div id="acornBox" class="chip"><span id="acornCount">🌰 0 / 0</span><div id="partnerAcorns" class="hidden"></div></div>
-  <div id="hpWrap" class="chip hidden"><div id="hpLabel"><span>❤️ Health</span><span id="hpNum">100</span></div><div id="hpBar"><div id="hpFill"></div></div><div id="shBar"><div id="shFill"></div></div></div>
-  <div id="scoreBox" class="chip hidden">KOs — You 0 · Friend 0</div>
-  <div id="buffRow"></div>
-  <div id="compass" class="chip"><svg id="compassArrow" viewBox="0 0 26 26"><circle cx="13" cy="13" r="12" fill="#6b3518"/><path d="M13 4 L19 18 L13 15 L7 18 Z" fill="#ffd34d"/></svg><span id="compassText">🌰</span></div>
-  <button id="soundBtn" class="chip" aria-label="Sound">🔊</button>
-  <button id="fpBtn" class="chip" aria-label="Camera view">🎥 3rd</button>
+  <div id="hudTL">
+    <div id="sysRow"><button id="menuBtn" class="chip">☰ Menu</button><button id="soundBtn" class="chip" aria-label="Sound">🔊</button><button id="fpBtn" class="chip" aria-label="Camera view">🎥 3rd</button></div>
+    <div id="hpWrap" class="chip hidden"><div id="hpLabel"><span>❤️ Health</span><span id="hpNum">100</span></div><div id="hpBar"><div id="hpFill"></div></div><div id="shBar"><div id="shFill"></div></div></div>
+    <div id="buffRow"></div>
+  </div>
+  <div id="scoreBox" class="chip hidden"></div>
+  <div id="ggBanner"></div>
+  <div id="hudTR">
+    <div id="compass" class="chip"><svg id="compassArrow" viewBox="0 0 26 26"><circle cx="13" cy="13" r="12" fill="#6b3518"/><path d="M13 4 L19 18 L13 15 L7 18 Z" fill="#ffd34d"/></svg><span id="compassText">🌰</span></div>
+    <div id="acornBox" class="chip"><span id="acornCount">🌰 0 / 0</span><div id="partnerAcorns" class="hidden"></div></div>
+  </div>
   <div id="crosshair"></div>
   <div id="netStatus" class="hidden"></div>
   <div id="toast"></div>
@@ -158,8 +170,7 @@
 <div id="controls" class="hidden">
   <div id="camZone"></div>
   <div id="stickZone"><div id="stickBase"><div id="stickKnob"></div></div></div>
-  <div id="lookZone"><div id="lookBase"><div id="lookKnob"></div></div></div>
-  <button id="weapBtn" class="hidden">Pistol<small>15 / 15</small></button>
+  <button id="weapBtn" class="hidden"><span class="wn">Pistol</span><small>15 / 15</small></button>
   <button id="fireBtn" class="rbtn hidden">FIRE</button>
   <button id="reloadBtn" class="rbtn hidden"><span>🔄</span>RELOAD</button>
   <button id="jumpBtn" class="rbtn">JUMP</button>
@@ -677,11 +688,7 @@ const SKYW = (() => {
     const vy = Math.sqrt(2 * G * (apex - top)), airT = vy / G + Math.sqrt(2 * (apex - ty) / G);
     PADS.push({ x, z, base, top, r: 1.55, vy, hv: dist / airT, dx: dx / dist, dz: dz / dist, airT, tx, ty, tz });
   }
-  [135, 315].forEach(deg => { const a = deg * PI / 180; pad(Math.cos(a) * 12, Math.sin(a) * 12, Math.cos(a) * 3.6, OAK.crownTop, Math.sin(a) * 3.6, 1.6); });
-  PINES.forEach((p, i) => {
-    const o = ISL[p.island], inward = Math.atan2(o.z - p.z, o.x - p.x), px = p.x + Math.cos(inward) * 7.2, pz = p.z + Math.sin(inward) * 7.2;
-    pad(px, pz, p.x + Math.cos(inward) * 2.2, p.perchTop, p.z + Math.sin(inward) * 2.2, 1.8);
-  });
+  // (no bounce mushrooms any more: the oak and the pines are climbed by jumping up their leaf pads)
 
   // ---- where things are
   const SPAWNS = [{ x: 0, z: 35.5, yaw: PI }, { x: 0, z: -35.5, yaw: 0 }, { x: 34.5, z: 0, yaw: PI * 1.5 }, { x: -34.5, z: 0, yaw: PI * 0.5 }];
@@ -2565,7 +2572,7 @@ function updatePower(dt, t) {
 }
 
 /* ---------- Players ---------- */
-const SPEED = 6.6, GRAV = -26, JUMP_V = 10.2, RADIUS = 0.3, HEIGHT = 1.0, MAX_HP = 100, KILL_LIMIT = 5;
+const SPEED = 9.1, GRAV = -26, JUMP_V = 10.2, RADIUS = 0.3, HEIGHT = 1.0, MAX_HP = 100, KILL_LIMIT = 5;
 const me = {
   sq: null, char: 0, wantChar: 0, pos: V(), vel: V(), grounded: false, coyote: 0, jumpBuf: 0, run: 0,
   collected: new Set(), won: false, spawn: V(), lastSafe: V(),
@@ -2611,7 +2618,7 @@ function setFp(on) {
   updateFpUi();
 }
 function updateFpUi() {
-  document.body.classList.toggle('fp', !!fpMode); if (!fpMode) releaseLook();
+  document.body.classList.toggle('fp', !!fpMode);
   const b = $('fpBtn'); if (b) b.textContent = fpMode ? '👁️ 1st' : '🎥 3rd';
   const f = $('fpTog1'), t = $('fpTog3');
   if (f) f.classList.toggle('sel', fpMode);
@@ -2702,6 +2709,8 @@ const FPL = (() => {
     hammer: { s: 0.9, hand: { p: [0.13, -0.12, -0.46], f: [-0.83, -0.26, -0.11], b: [0.25, -0.52, -0.66] }, swing: [0.3, 0, -1] }
   };
   const WPOSE = { 2: { p: [0.14, -0.17, -0.5], s: 0.75, ry: 0.06 }, 11: { p: [0.12, -0.2, -0.42], s: 0.85 } };
+  // v37: the viewmodel is drawn at VMS of its old size, and moved right / down by HIP (lens units); HIP_R turns the gun a little more towards the crosshair
+  const VMS = 0.72, HIPC = { pistol: [0.06, 0.02, 0], smg: [0.055, 0.0, 0], rifle: [0.055, 0.005, 0], heavy: [0.06, 0.0, 0], thrown: [0.06, 0.05, 0], knife: [0.07, 0.015, 0] }, HIP_DEF = [0.07, -0.01, 0], HIP_R = [0, 0.085], ZD = { ox: 0, oy: 0, oz: 0, rx: 0, ry: 0, rz: 0 };
   const CLS_OF = ['pistol', 'smg', 'heavy', 'knife', 'sword', 'rifle', 'thrown', 'rifle', 'rifle', 'rifle', 'heavy', 'heavy', 'rifle', 'hammer', 'thrown'];
 
   // ---- where each hand goes on each weapon (all in the weapon's own coordinates: +z to the muzzle, +y up, +x to the shooter's LEFT) ----
@@ -2717,8 +2726,8 @@ const FPL = (() => {
   // (c: centre of the fore-end's cross-section, hu / hv: half its width / height). The top rail and the sights stay clear.
   const CUP = (c, hu, hv, o) => Object.assign({ h: Hd(c, [0, 0, 1], [1, 0, 0], hu, hv, Math.min(hu, hv) * 0.5), f: [-1, 0.5, 0.1], b: [-0.45, -1, 0], y: 0.52, dev: [0.5, 0.1], tk: 0.6 }, o || {});
   const GRIPS = [
-    { R: RGRIP([0, -0.08, 0.008], 0.2, 0.027, 0.031), L: { h: pistolGrip([0.004, -0.1, 0.03], 0.2, 0.04, 0.042), f: [-0.36, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52 } },  // 0 pistol: both hands, the left wrapped round the right
-    { R: RGRIP([0, -0.1, 0.06], 0.08, 0.023, 0.029), L: LSIDE([0, 0.005, 0.19], 0.031, 0.048) },                                       // 1 uzi
+    { R: RGRIP([0, -0.08, 0.008], 0.2, 0.027, 0.031, { dev: [0.08, 0.1] }), L: { h: pistolGrip([0.004, -0.1, 0.03], 0.2, 0.04, 0.042), f: [-0.36, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52, dev: [0.05, 0.1] } },  // 0 pistol: both hands, the left wrapped round the right
+    { R: RGRIP([0, -0.1, 0.06], 0.08, 0.023, 0.029, { dev: [0.2, 0.1] }), L: LSIDE([0, 0.005, 0.19], 0.031, 0.048, { dev: [-0.2, 0.1] }) },                                       // 1 uzi
     { R: RGRIP([0, -0.11, -0.02], 0.2, 0.02, 0.025), L: RGRIP([0, -0.13, 0.2], 0, 0.02, 0.0225, { f: [0.2, 0, 1], b: [1, -0.1, -0.2], y: 0.55 }) },  // 2 rocket launcher: two upright grips
     { R: { h: Hd([0, 0, -0.012], [0, 0, 1], [1, 0, 0], 0.017, 0.021), f: [0, -1, 0], b: [-1, 0, 0], y: 0.55 } },                       // 3 knife
     { R: { h: Hd([0, 0, 0.042], [0, 0, 1], [1, 0, 0], 0.019, 0.022), f: [-0.1, -1, 0], b: [-1, 0.1, 0], y: 0.55 },
@@ -2742,7 +2751,7 @@ const FPL = (() => {
   };
   // which way each forearm leaves the screen (vm space), per weapon kind: right, left
   const ELBOW = {
-    pistol: [[0.25, -0.75, 0.62], [-0.3, -0.75, 0.6]], smg: [[0.4, -0.75, 0.55], [-0.4, -0.75, 0.55]], rifle: [[0.45, -0.7, 0.55], [-0.7, -0.6, 0.4]],
+    pistol: [[-0.42, -0.85, 0.36], [0.42, -0.85, 0.36]], smg: [[-0.15, -0.85, 0.42], [0.2, -0.82, 0.42]], rifle: [[0.45, -0.7, 0.55], [-0.7, -0.6, 0.4]],
     heavy: [[0.45, -0.7, 0.55], [-0.45, -0.7, 0.55]], knife: [[0.4, -0.75, 0.5], [-0.35, -0.8, 0.5]], thrown: [[0.4, -0.75, 0.5], [-0.35, -0.8, 0.5]],
     sword: [[0.6, -0.6, 0.5], [-0.35, -0.8, 0.5]], hammer: [[0.55, -0.65, 0.5], [-0.35, -0.8, 0.5]], fists: [[0.35, -0.75, 0.55], [-0.35, -0.75, 0.55]]
   };
@@ -3231,7 +3240,7 @@ const FPL = (() => {
   function layout(o) {
     const id = o.id, K = kitOf(id), armed = o.w >= 0 && GRIPS[o.w];
     const tMain = Math.tan((o.fov || 58) * 0.5 * PI / 180), tv = vmTan(o.aspect), k = tMain / tv;
-    const ak = clamp(o.aspect / 2.0, 0.62, 1.1), sk = clamp(0.62 + 0.38 * o.aspect / 1.6, 0.8, 1);   // narrow screens: everything in toward the middle, a bit smaller
+    const ak = clamp(o.aspect / 2.0, 0.62, 1.1), sk = clamp(0.62 + 0.38 * o.aspect / 1.6, 0.8, 1) * VMS, hsk = clamp(o.aspect / 2.16, 0.1, 1);   // narrow screens: everything in toward the middle, a bit smaller
     const cl = armed ? CLS_OF[o.w] : 'fists', out = { cls: cl, vmK: k, vmTan: tv, gun: null, hands: [null, null] };
     const handOut = (key, R, org, side, wristRest, Trest) => {
       const g = handGeom(key), s = sk;
@@ -3242,8 +3251,9 @@ const FPL = (() => {
       return { key, m, R, org, wrist, T0, X: X0, zs, sc: s, side };
     };
     let hands = [null, null];
-    const place = (kick, chop, tilt, punch, lOff, rl, thr, empty) => {
-      const res = [null, null];
+    const place = (kick, chop, tilt, punch, lOff, rl, thr, empty, dyn) => {
+      const res = [null, null], dd = (dyn && typeof dyn.ox === 'number') ? dyn : ZD, hh = HIPC[cl] || HIP_DEF, hip = [hh[0] * hsk + dd.ox, hh[1] + dd.oy, hh[2] + dd.oz];
+
       if (armed) {
         const cls = WPOSE[o.w] ? Object.assign({}, CLS[cl], WPOSE[o.w]) : CLS[cl], G = GRIPS[o.w]; let s = cls.s * sk;
         let thrP = null;                                   // grenade / dynamite: mid-throw, or nothing left to hold
@@ -3255,17 +3265,17 @@ const FPL = (() => {
           let Rh = frameFB(H.f, H.b);
           const ang = -chop * (cl === 'knife' ? 0.35 : 0.7) + kick * 0.2 - (tilt ? tilt[1] : 0);
           if (ang) Rh = mm(axisM(norm(sw), ang), Rh);
-          const org = [H.p[0] * ak, H.p[1] + chop * (cl === 'knife' ? 0.01 : -0.03), H.p[2] - chop * (cl === 'knife' ? 0.13 : 0.05)];
+          const org = [H.p[0] * ak + hip[0], H.p[1] + hip[1] + chop * (cl === 'knife' ? 0.01 : -0.03), H.p[2] + hip[2] - chop * (cl === 'knife' ? 0.13 : 0.05)];
           const Gf = gripFrame(G.R), g = handGeom(`${id}|R|w${o.w}R`);
           R = mm(Rh, [Gf[0], Gf[3], Gf[6], Gf[1], Gf[4], Gf[7], Gf[2], Gf[5], Gf[8]]);
           pos = sub(add(org, mv(Rh, mul(g.anchor, sk))), mv(R, mul(G.R.h.c, s)));
         } else {
           const rp = RL_POSE[o.w] && rl && rl.k > 0.001 ? RL_POSE[o.w].map(v => v * rl.k) : null;   // the reload pose of the whole gun
-          const pr = [cls.p[0] * ak + (rp ? rp[3] : 0), cls.p[1] + (rp ? rp[4] : 0), cls.p[2] + (rp ? rp[5] : 0)];
-          const rx = cls.rx + kick * 0.3 - chop * 0.5 - (tilt ? tilt[1] : 0) + (rp ? rp[1] : 0), rz = cls.rz + (tilt ? tilt[0] : 0) + (rp ? rp[0] : 0), ry = PI + cls.ry + (rp ? rp[2] : 0);
+          const pr = [cls.p[0] * ak + hip[0] + (rp ? rp[3] : 0), cls.p[1] + hip[1] + (rp ? rp[4] : 0), cls.p[2] + hip[2] + (rp ? rp[5] : 0)];
+          const rx = cls.rx + HIP_R[0] + dd.rx + kick * 0.34 - chop * 0.5 - (tilt ? tilt[1] : 0) + (rp ? rp[1] : 0), rz = cls.rz + dd.rz + (tilt ? tilt[0] : 0) + (rp ? rp[0] : 0), ry = PI + cls.ry + HIP_R[1] + dd.ry + (rp ? rp[2] : 0);
           R = rotM(rx, ry, rz);
           const gR = mv(R, mul(G.R.h.c, s));
-          pos = [pr[0] - gR[0], pr[1] - gR[1], pr[2] - gR[2] + kick * 0.045 - chop * 0.05];
+          pos = [pr[0] - gR[0], pr[1] - gR[1], pr[2] - gR[2] + kick * 0.055 - chop * 0.05];
         }
         const toCam = p => add(mv(R, mul(p, s)), pos);
         res.gun = { pos, scale: s, R };
@@ -3288,18 +3298,18 @@ const FPL = (() => {
           res[k] = [key, Rh, org];
         }
         if (!G.L && FREE[cl]) {
-          const fr = FREE[cl], Rh = frameFB(fr.f, fr.b), lf = thrP ? thrP.lift : 0, p = [fr.p[0] * ak + 0.06 * lf, fr.p[1] + 0.06 * lf, fr.p[2] - 0.05 * lf];
+          const fr = FREE[cl], Rh = frameFB(fr.f, fr.b), lf = thrP ? thrP.lift : 0, p = [fr.p[0] * ak + hip[0] + 0.06 * lf, fr.p[1] + hip[1] + 0.06 * lf, fr.p[2] + hip[2] - 0.05 * lf];
           res[1] = [`${id}|L|${fr.pose}`, Rh, p];
         }
       } else {
         const pn = punch || 0;
         const Rr = frameFB([-0.25, 0.2, -1], [0.85, 0.45, 0.1]), Rl = frameFB([0.25, 0.2, -1], [-0.85, 0.45, 0.1]);
-        res[0] = [`${id}|R|fist`, Rr, [0.14 * ak, -0.095 + pn * 0.02, -0.4 - pn * 0.22]];
-        res[1] = [`${id}|L|fist`, Rl, [-0.15 * ak, -0.1, -0.42 + pn * 0.03]];
+        res[0] = [`${id}|R|fist`, Rr, [0.14 * ak + dd.ox, -0.095 + -0.012 + dd.oy + pn * 0.02, -0.4 - pn * 0.22]];
+        res[1] = [`${id}|L|fist`, Rl, [-0.15 * ak + dd.ox, -0.1 + -0.012 + dd.oy, -0.42 + pn * 0.03]];
       }
       return res;
     };
-    const live = place(o.kick || 0, o.chop || 0, o.tilt, o.punch, o.lOff, o.rl, o.thr || 0, !!o.empty), rest = place(0, 0, null, 0, null, null, 0, false);
+    const live = place(o.kick || 0, o.chop || 0, o.tilt, o.punch, o.lOff, o.rl, o.thr || 0, !!o.empty, o.dyn), rest = place(0, 0, null, 0, null, null, 0, false, null);
     if (live.parts) out.parts = live.parts;
     if (live.hide) out.hideGun = true;
     if (live.gun) { const g = live.gun, R = g.R, sc = g.scale;
@@ -3309,7 +3319,7 @@ const FPL = (() => {
       const side = k === 0 ? 1 : -1, hr = rest[k] || h;
       const ho = handOut(h[0], h[1], h[2], side), hro = handOut(hr[0], hr[1], hr[2], side);
       const D = (ELBOW[cl] || ELBOW.rifle)[k];
-      const eRest = add(hro.wrist, mul(norm(add(hro.T0, mul(norm(D), 1.2))), K.arm.Lf * sk * (1 + 0.5 * clamp(1.5 - o.aspect, 0, 1))));   // tall screens show more below the hands: longer forearms
+      const eRest = add(hro.wrist, mul(norm(add(hro.T0, mul(norm(D), 1.2))), K.arm.Lf * sk * 1.28 * (1 + 0.5 * clamp(1.5 - o.aspect, 0, 1))));   // tall screens show more below the hands: longer forearms
       ho.elbow = add(eRest, mul(sub(ho.wrist, hro.wrist), 0.6));
       out.hands[k] = ho;
     }
@@ -3382,7 +3392,25 @@ function ensureFpArms() {
 // Lay out the whole viewmodel for this frame (FPL does the maths): the gun, both hands on their grips, the forearms.
 // The viewmodel gun is its own copy, so the moving parts (slide, magazine, pump, bolt, spinning barrels ...) are copied over each frame from the gun
 // that weaponAnim() animates on your character; the part the left hand is carrying during a reload is then placed by FPL, so it stays in the hand.
-function updateFpView(kick, chop) {
+// Weapon feel (first person): the gun bobs as you run (quicker in a sprint), lags behind when you turn and settles back with a little wobble,
+// and kicks back when it fires with a springy rebound. All springs, so it looks the same at any frame rate.
+const vmS = { ph: 0, bob: 0, sx: 0, sxv: 0, sy: 0, syv: 0, kx: 0, kv: 0, yaw: 0, pitch: 0, init: false, dyn: { ox: 0, oy: 0, oz: 0, rx: 0, ry: 0, rz: 0 } };
+function vmFeel(dt, sq) {
+  const S = vmS, h = Math.min(dt, 0.05);
+  if (!S.init) { S.yaw = cam.yaw; S.pitch = fpPitch; S.init = true; }
+  const hs = Math.hypot(me.vel.x, me.vel.z), run = Math.min(1, hs / SPEED), moving = me.grounded && !me.dead && run > 0.08, spr = me.sprint || 0;
+  S.ph += h * Math.PI * 2 * (1.35 + 0.95 * spr) * (moving ? 0.55 + 0.45 * run : 0);      // a left-right cycle roughly every 0.75 s walking, 0.45 s sprinting
+  S.bob += ((moving ? run * (1 + 0.3 * spr) : 0) - S.bob) * (1 - Math.exp(-h * 9));
+  const bx = Math.sin(S.ph) * 0.0055 * S.bob, by = (Math.sin(S.ph * 2) * 0.5 - 0.5) * 0.0045 * S.bob;
+  const dyaw = ((cam.yaw - S.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI, dpit = fpPitch - S.pitch; S.yaw = cam.yaw; S.pitch = fpPitch;
+  const tx = Math.max(-1, Math.min(1, dyaw / Math.max(h, 1e-3) * 0.3)), ty = Math.max(-1, Math.min(1, -dpit / Math.max(h, 1e-3) * 0.3));
+  S.sxv += (150 * (tx - S.sx) - 14 * S.sxv) * h; S.sx += S.sxv * h;                      // sway: a spring chasing how fast you are turning
+  S.syv += (150 * (ty - S.sy) - 14 * S.syv) * h; S.sy += S.syv * h;
+  S.kv += (380 * ((sq ? sq.recoil : 0) - S.kx) - 27 * S.kv) * h; S.kx += S.kv * h;      // recoil: a spring chasing the shot's kick
+  const D = S.dyn; D.ox = bx + S.sx * 0.02; D.oy = by + S.sy * 0.013; D.rx = S.sy * 0.045; D.ry = -S.sx * 0.06; D.rz = S.sx * 0.04;
+  return { dyn: D, kick: Math.max(-0.1, Math.min(1.25, S.kx)) };
+}
+function updateFpView(kick, chop, dyn) {
   const sq = me.sq, w = me.weapon, g = w >= 0 ? vmGunCache[w] : null;
   let lOff = null, rl = null;
   if (g && sq) {
@@ -3393,7 +3421,7 @@ function updateFpView(kick, chop) {
     if ((sq.rlK || 0) > 0.001) rl = { p: sq.rlP || 0, k: sq.rlK };           // reloading: how far through it, and how far the gun has swung into its reload pose
   }
   const id = CH[me.char].id;
-  const lay = FPL.layout({ id, w: g ? w : -1, aspect: camera.aspect, fov: camera.fov, kick, chop, tilt: null, punch: sq ? (sq.atk || 0) : 0, lOff, rl,
+  const lay = FPL.layout({ id, w: g ? w : -1, aspect: camera.aspect, fov: camera.fov, dyn, kick, chop, tilt: null, punch: sq ? (sq.atk || 0) : 0, lOff, rl,
     thr: g && me.thr && me.thr.w === w ? Math.min(1, me.thr.t / me.thr.d) : 0, empty: !!g && wDef(w).kind === 'grenade' && me.ammo[w] <= 0 });     // thr: how far through a throw; empty: nothing left to throw
   if (g && lay.parts) { const T = g.userData.T; for (const k in lay.parts) { const o = T && T[k], q = lay.parts[k]; if (o) { o.position.set(q.pos[0], q.pos[1], q.pos[2]); o.visible = q.vis; } } }
   if (g && fpArms && fpArms.warm !== w + '|' + me.char && FPL.MAGH[w]) { fpArms.warm = w + '|' + me.char; fpHandGeo(`${id}|L|m${w}`); }   // build the reload hand now, not in the middle of the first reload
@@ -3441,9 +3469,11 @@ function ggSync(announce) {
   }
   if (lv > ggAnn) {
     ggAnn = lv;
-    if (announce) { toast(lv === LADDER.length - 1 ? `${WEAPONS[w].icon} Final weapon — ${WEAPONS[w].name}! One more KO wins!` : `⬆️ Level ${lv + 1}/${LADDER.length} — ${WEAPONS[w].icon} ${WEAPONS[w].name}`, 1800); sfx('pickup'); }
+    if (announce) { ggBanner(lv === LADDER.length - 1 ? `${WEAPONS[w].icon} Final weapon — ${WEAPONS[w].name}! One more KO wins!` : `⬆️ Level ${lv + 1}/${LADDER.length} — ${WEAPONS[w].icon} ${WEAPONS[w].name}`, 1800); sfx('pickup'); }
   }
 }
+let ggBannerTimer = 0;
+function ggBanner(msg, ms = 1800) { const b = $('ggBanner'); b.textContent = msg; b.classList.add('show'); clearTimeout(ggBannerTimer); ggBannerTimer = setTimeout(() => b.classList.remove('show'), ms); }
 function setGunGame(on) {
   if (gunGame === on) return;
   gunGame = on; ggAnn = 0; resetWeapons(); ggSync(false);
@@ -3495,7 +3525,10 @@ function updateHud() {
   $('acornCount').textContent = `🌰 ${me.collected.size} / ${acorns.length}`;
   if (armedMode()) {
     if (mode === 'coop') $('partnerAcorns').textContent = `${role === 1 ? 'P2' : 'P1'}: ${remote.active ? remote.ac : '–'} 🌰`;
-    $('scoreBox').textContent = gunGame ? `🎯 Gun Game — You ${Math.min(remote.deaths + 1, LADDER.length)}/${LADDER.length} · ${oppName()} ${Math.min(me.deaths + 1, LADDER.length)}/${LADDER.length}` : `KOs — You ${remote.deaths} · ${oppName()} ${me.deaths} · first to ${KILL_LIMIT}`;
+    if (gunGame) {
+      const N = LADDER.length, y = Math.min(remote.deaths + 1, N), o = Math.min(me.deaths + 1, N);
+      $('scoreBox').innerHTML = `<div class="gg"><span>You</span><span class="lv">${y}/${N}</span><span class="bar"><i style="width:${Math.round(y / N * 100)}%"></i></span><span class="vs">vs</span><span class="bar o"><i style="width:${Math.round(o / N * 100)}%"></i></span><span class="lv">${o}/${N}</span><span class="nm">${oppName()}</span></div>`;
+    } else $('scoreBox').textContent = `You ${remote.deaths} – ${me.deaths} ${oppName()} · first to ${KILL_LIMIT}`;
     const hp = Math.max(0, Math.round(me.hp));
     $('hpNum').textContent = hp; $('hpFill').style.width = hp + '%';
     $('hpFill').style.background = hp > 50 ? '#4caf50' : hp > 25 ? '#ffb300' : '#e53935';
@@ -3505,12 +3538,9 @@ function updateHud() {
 function updateWeaponHud() {
   const w = me.weapon, d = wDef(w), b = $('weapBtn');
   const rl = me.rld > 0 && w >= 0;
-  let sub = w < 0 ? 'no weapon' : d.melee ? 'melee' : d.mag ? `${me.mag[w]} / ${Math.max(0, me.ammo[w] - me.mag[w])}` : `${me.ammo[w]} / ${d.max}`;
+  let sub = w < 0 ? 'no weapon' : d.melee ? 'melee' : d.mag ? `${me.mag[w]} / ${gunGame ? '∞' : Math.max(0, me.ammo[w] - me.mag[w])}` : gunGame ? '∞' : `${me.ammo[w]} / ${d.max}`;
   if (rl) sub = 'reloading…';
-  if (gunGame) {
-    const lv = ggLevel(), nx = lv < LADDER.length - 1 ? WEAPONS[LADDER[lv + 1]] : null;
-    b.innerHTML = `${d.icon} ${d.name}<small>${d.mag ? (rl ? 'reloading…' : me.mag[w] + ' loaded') + ' · ' : ''}Level ${lv + 1}/${LADDER.length} · ${nx ? 'next ' + nx.icon : 'last one!'}</small>`;
-  } else b.innerHTML = `${d.icon} ${d.name}<small>${sub} · tap to switch</small>`;
+  b.innerHTML = `<span class="wn">${w < 0 ? '👊 Fists' : d.icon + ' ' + d.name}</span><small>${sub}</small>`;
   b.classList.toggle('empty', !gunGame && w >= 0 && !d.melee && me.ammo[w] === 0);
   $('fireBtn').textContent = d.btn;
   $('reloadBtn').classList.toggle('hidden', !(armedMode() && w >= 0 && d.mag));
@@ -3622,7 +3652,7 @@ function updateReloadHud() {
   const on = me.rld > 0 && me.weapon >= 0, pct = on ? Math.round((1 - me.rld / me.rldD) * 20) * 5 : -1;
   if (pct === rlHud) return;
   const was = rlHud >= 0; rlHud = pct;
-  const b = $('weapBtn'); b.style.setProperty('--rl', Math.max(0, pct) + '%'); b.classList.toggle('reloading', on); $('reloadBtn').classList.toggle('busy', on);
+  const b = $('weapBtn'); b.style.setProperty('--rl', Math.max(0, pct) + '%'); b.classList.toggle('reloading', on); $('reloadBtn').style.setProperty('--rl', Math.max(0, pct) + '%'); $('reloadBtn').classList.toggle('busy', on);
   if (on !== was) updateWeaponHud();
 }
 
@@ -3835,8 +3865,8 @@ function handleRemoteEvent(e, owner) {
 /* ---------- Input ---------- */
 const input = { keys: {}, stickId: null, stickX: 0, stickZ: 0, fire: false };
 function resetInput() {
-  input.keys = {}; releaseStick(); releaseCam(); releaseLook(); if ($('fireBtn')._up) $('fireBtn')._up(); input.fire = false;
-  [stickGuard, camGuard, fireGuard, lookGuard].forEach(g => g.clear());
+  input.keys = {}; releaseStick(); releaseCam(); fireLook.id = null; if ($('fireBtn')._up) $('fireBtn')._up(); input.fire = false;
+  [stickGuard, camGuard, fireGuard].forEach(g => g.clear());
   ['jumpBtn', 'weapBtn', 'reloadBtn'].forEach(id => $(id).classList.remove('down'));
 }
 window.addEventListener('keydown', e => {
@@ -3875,16 +3905,13 @@ function makeTouchGuard(el, isActive, release) {
 }
 const stickGuard = makeTouchGuard(zone, () => input.stickId !== null, () => releaseStick());
 const camGuard = makeTouchGuard(camZone, () => cam.dragId !== null, () => releaseCam());
-const lookZone = $('lookZone'), lookBase = $('lookBase'), lookKnob = $('lookKnob'), look = { id: null, x: 0, y: 0, cx: 0, cy: 0 };
-const lookGuard = makeTouchGuard(lookZone, () => look.id !== null, () => releaseLook());
 const fireGuard = makeTouchGuard($('fireBtn'), () => input.fire, () => { if ($('fireBtn')._up) $('fireBtn')._up(); });
 function releaseStick() { input.stickId = null; input.stickX = input.stickZ = 0; knob.style.transform = ''; base.style.left = ''; base.style.top = ''; base.style.bottom = ''; stickGuard.ended(); }
 function releaseCam() { cam.dragId = null; camGuard.ended(); }
-function releaseLook() { look.id = null; look.x = look.y = 0; lookKnob.style.transform = ''; lookBase.style.left = lookBase.style.top = lookBase.style.bottom = lookBase.style.right = ''; lookGuard.ended(); }
 const onTouchEnd = e => {
   const none = e.touches.length === 0;
-  [stickGuard, camGuard, fireGuard, lookGuard].forEach(g => g.drop(e));
-  [stickGuard, camGuard, fireGuard, lookGuard].forEach(g => g.check(none));
+  [stickGuard, camGuard, fireGuard].forEach(g => g.drop(e));
+  [stickGuard, camGuard, fireGuard].forEach(g => g.check(none));
 };
 ['touchend', 'touchcancel'].forEach(t => window.addEventListener(t, onTouchEnd, { capture: true, passive: true }));
 document.addEventListener('visibilitychange', () => { if (document.hidden) resetInput(); });
@@ -3912,37 +3939,27 @@ function moveStick(e) {
   let nx = dx / STICK_R, nz = dy / STICK_R; if (Math.hypot(nx, nz) < 0.15) nx = nz = 0;
   input.stickX = nx; input.stickZ = nz;
 }
-// First person: the right-hand stick turns the camera (push = turn, harder push = faster; the floating base follows where the thumb lands)
-lookZone.addEventListener('pointerdown', e => {
-  if (!fpMode) return;
-  if (look.id !== null) releaseLook();
-  e.preventDefault(); look.id = e.pointerId; lookGuard.began(e.pointerType);
-  try { lookZone.setPointerCapture(e.pointerId); } catch (_) {}
-  const r = lookBase.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  if (Math.hypot(e.clientX - cx, e.clientY - cy) > 90) {
-    const zr = lookZone.getBoundingClientRect();
-    lookBase.style.right = 'auto'; lookBase.style.left = (e.clientX - zr.left - r.width / 2) + 'px'; lookBase.style.top = (e.clientY - zr.top - r.height / 2) + 'px'; lookBase.style.bottom = 'auto';
-    look.cx = e.clientX; look.cy = e.clientY;
-  } else { look.cx = cx; look.cy = cy; }
-  moveLook(e);
-});
-window.addEventListener('pointermove', e => { if (e.pointerId === look.id) { e.preventDefault(); moveLook(e); } }, { passive: false });
-const endLook = e => { if (e.pointerId === look.id) releaseLook(); };
-window.addEventListener('pointerup', endLook, true); window.addEventListener('pointercancel', endLook, true);
-function moveLook(e) {
-  let dx = e.clientX - look.cx, dy = e.clientY - look.cy;
-  const d = Math.hypot(dx, dy); if (d > STICK_R) { dx *= STICK_R / d; dy *= STICK_R / d; }
-  lookKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-  let nx = dx / STICK_R, ny = dy / STICK_R; if (Math.hypot(nx, ny) < 0.12) nx = ny = 0;
-  look.x = nx; look.y = ny;
+// Looking around: drag anywhere on the right half of the screen (or drag the thumb that is holding FIRE). The movement is smoothed over a couple
+// of frames, so a swipe turns the view evenly instead of in jumps.
+const fireLook = { id: null, x: 0, y: 0 };
+const LOOK = { yaw: 0.0085, pitch: 0.005, fpYaw: 0.0062, fpPitch: 0.0045 };      // radians per pixel (a little finer in first person, where you aim)
+let lookPX = 0, lookPY = 0;
+function lookBy(dx, dy) { lookPX += dx; lookPY += dy; cam.idle = 0; }
+function applyLook(dt) {
+  if (!lookPX && !lookPY) return;
+  const k = 1 - Math.exp(-Math.min(dt, 0.05) * 40); let ax = lookPX * k, ay = lookPY * k;
+  if (Math.abs(lookPX) < 0.05) ax = lookPX; if (Math.abs(lookPY) < 0.05) ay = lookPY;
+  lookPX -= ax; lookPY -= ay;
+  if (fpMode) { cam.yaw -= ax * LOOK.fpYaw; fpPitch = Math.min(FP_PITCH_MAX, Math.max(-FP_PITCH_MAX, fpPitch - ay * LOOK.fpPitch)); }
+  else { cam.yaw -= ax * LOOK.yaw; cam.pitch = Math.min(1.15, Math.max(0.05, cam.pitch + ay * LOOK.pitch)); }
 }
 // Camera: drag anywhere else on the screen to look around
 camZone.addEventListener('pointerdown', e => { if (cam.dragId !== null) releaseCam(); e.preventDefault(); cam.dragId = e.pointerId; camGuard.began(e.pointerType); cam.lastX = e.clientX; cam.lastY = e.clientY; try { camZone.setPointerCapture(e.pointerId); } catch (_) {} });
 window.addEventListener('pointermove', e => {
   if (e.pointerId !== cam.dragId) return;
   e.preventDefault();
-  cam.yaw -= (e.clientX - cam.lastX) * 0.0085; if (fpMode) fpPitch = Math.min(FP_PITCH_MAX, Math.max(-FP_PITCH_MAX, fpPitch - (e.clientY - cam.lastY) * 0.005)); else cam.pitch = Math.min(1.15, Math.max(0.05, cam.pitch + (e.clientY - cam.lastY) * 0.005));
-  cam.lastX = e.clientX; cam.lastY = e.clientY; cam.idle = 0;
+  lookBy(e.clientX - cam.lastX, e.clientY - cam.lastY);
+  cam.lastX = e.clientX; cam.lastY = e.clientY;
 }, { passive: false });
 const endCam = e => { if (e.pointerId === cam.dragId) releaseCam(); };
 window.addEventListener('pointerup', endCam, true); window.addEventListener('pointercancel', endCam, true);
@@ -3956,6 +3973,10 @@ function holdButton(el, onDown, onUp, guard) {
 }
 holdButton($('jumpBtn'), () => { if (playing) me.jumpBuf = 0.15; });
 holdButton($('fireBtn'), () => { input.fire = true; }, () => { input.fire = false; }, fireGuard);
+// FIRE + drag: the thumb that holds FIRE keeps turning the camera, so you can follow a target while you shoot
+$('fireBtn').addEventListener('pointerdown', e => { fireLook.id = e.pointerId; fireLook.x = e.clientX; fireLook.y = e.clientY; });
+window.addEventListener('pointermove', e => { if (e.pointerId !== fireLook.id) return; e.preventDefault(); lookBy(e.clientX - fireLook.x, e.clientY - fireLook.y); fireLook.x = e.clientX; fireLook.y = e.clientY; }, { passive: false });
+['pointerup', 'pointercancel'].forEach(ev => window.addEventListener(ev, e => { if (e.pointerId === fireLook.id) fireLook.id = null; }, true));
 holdButton($('weapBtn'), () => { if (playing && armedMode()) switchWeapon(); });
 holdButton($('reloadBtn'), () => { if (playing && armedMode()) manualReload(); });
 function readMove() {
@@ -4007,12 +4028,16 @@ function stepBody(o, dt) {
   if (o.grounded && H(o.pos.x, o.pos.z) > 0.4 || o.grounded && o.pos.y > 0.6) o.lastSafe.copy(o.pos);
   return { preVy, wasGrounded };
 }
+const SPRINT_AT = 0.85, SPRINT_FOV = 6, BASE_FOV = 58;
 function updateMe(dt) {
   me.healCd -= dt;
-  if (me.dead) { me.deadT -= dt; if (me.deadT <= 0) revive(); return; }
+  if (me.dead) { me.sprint = 0; me.deadT -= dt; if (me.deadT <= 0) revive(); return; }
   const mv = readMove();
   const accel = me.grounded ? 14 : 5;
   const spd = SPEED * (me.freeze > 0 ? 0.38 : 1) * (me.spT > 0 ? PU_SPEED : 1);
+  // auto-sprint: the stick pushed (almost) all the way forward
+  const mag = Math.hypot(mv.x, mv.z), want = mag > SPRINT_AT && mv.fwd > mag * 0.5 && me.freeze <= 0;
+  me.sprint = lerp(me.sprint || 0, want ? 1 : 0, 1 - Math.exp(-dt * 9));
   if (me.padT > 0) { me.padT -= dt; me.vel.x += mv.x * 5.5 * dt; me.vel.z += mv.z * 5.5 * dt; if (me.grounded) me.padT = 0; }      // flying off a mushroom: keep the launch speed, steer a little
   else { me.vel.x = lerp(me.vel.x, mv.x * spd, dt * accel); me.vel.z = lerp(me.vel.z, mv.z * spd, dt * accel); }
   me.coyote = me.grounded ? 0.1 : me.coyote - dt;
@@ -4291,7 +4316,7 @@ document.querySelectorAll('#itemRow .item').forEach(b => { b.onclick = () => { c
 document.querySelectorAll('#modeRow .mode').forEach(b => { b.onclick = () => { ggPref = b.dataset.g === '1'; try { localStorage.setItem('tt_gun', ggPref ? '1' : '0'); } catch (_) {} paintMode(); paintItems(); }; });
 const paintMap = () => {
   document.querySelectorAll('#mapRow .map').forEach(b => b.classList.toggle('sel', (b.dataset.m === '1') === (mapPref === 1)));
-  $('mapNote').textContent = mapPref === 1 ? 'Floating islands, rope bridges, a giant oak to climb and bounce mushrooms. Fall in the clouds and you lose 25 HP in a fight. Co-op: the host picks the map.' : 'A big island with a castle, a ship and a tower. Co-op: the host picks the map.';
+  $('mapNote').textContent = mapPref === 1 ? 'Floating islands, rope bridges, a giant oak and pines to climb. Fall in the clouds and you lose 25 HP in a fight. Co-op: the host picks the map.' : 'A big island with a castle, a ship and a tower. Co-op: the host picks the map.';
 };
 document.querySelectorAll('#mapRow .map').forEach(b => { b.onclick = () => { mapPref = b.dataset.m === '1' ? 1 : 0; try { localStorage.setItem('tt_map', mapPref ? '1' : '0'); } catch (_) {} setMap(mapPref); paintMap(); }; });
 paintMap();
@@ -4683,12 +4708,9 @@ function frameBody() {
 
   // camera
   if (playing) {
+    applyLook(dt);
     if (fpMode) {
       // first person: the camera is your eyes — set directly, no smoothing, or the view lags behind your finger
-      if (look.id !== null && (look.x || look.y)) {                       // the right-hand stick: turn / look up and down (a curve, so small pushes aim finely)
-        const cv = v => Math.sign(v) * Math.pow(Math.abs(v), 1.6);
-        cam.yaw -= cv(look.x) * 3.0 * dt; fpPitch = Math.min(FP_PITCH_MAX, Math.max(-FP_PITCH_MAX, fpPitch - cv(look.y) * 1.9 * dt)); cam.idle = 0;
-      }
       const hh = CH[me.char].meta.hit, eye = me.pos.y + Math.max(0.7, hh * 0.85);
       camera.position.set(me.pos.x, eye, me.pos.z);
       fpLook(tmpV); camLook.set(me.pos.x + tmpV.x * 10, eye + tmpV.y * 10, me.pos.z + tmpV.z * 10);
@@ -4699,11 +4721,11 @@ function frameBody() {
       vm.position.copy(camera.position); vm.quaternion.copy(camera.quaternion);
       vm.visible = !me.dead;
       const sq = me.sq, wd = wDef(me.weapon);
-      const kick = sq.recoil, chop = (me.weapon >= 0 && wd.melee) ? sq.atk * (wd.swing || 1.5) : 0;
+      const fe = vmFeel(dt, sq), kick = fe.kick, chop = (me.weapon >= 0 && wd.melee) ? sq.atk * (wd.swing || 1.5) : 0;
       vmGunHolder.visible = me.weapon >= 0;
       if (me.weapon >= 0 && vmFlash) { vmFlash.visible = sq.mfT > 0; if (vmFlash.visible) { const k = (wd.mf || 1) * (0.8 + Math.random() * 0.45); vmFlash.rotation.z = Math.random() * 6.28; vmFlash.scale.set(k, k, k * (0.8 + Math.random() * 0.5)); } }
       ensureFpArms();
-      updateFpView(kick, chop);
+      updateFpView(kick, chop, fe.dyn);
     } else {
       const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), hh = CH[me.char].meta.hit, up = Math.max(0.7, hh * 0.75), dist = cam.dist * (camera.aspect < 1 ? 1.12 : 1) * (0.85 + hh * 0.15);
       camTarget.set(me.pos.x + Math.sin(cam.yaw) * cp * dist, me.pos.y + up + 0.2 + sp * dist, me.pos.z + Math.cos(cam.yaw) * cp * dist);
@@ -4715,10 +4737,12 @@ function frameBody() {
       if (me.sq) { me.sq.root.visible = !me.dead; me.sq.tag.sprite.visible = armedMode(); }
       vm.visible = false;
     }
+    const fovT = BASE_FOV + SPRINT_FOV * (me.dead ? 0 : (me.sprint || 0)); if (Math.abs(camera.fov - fovT) > 0.02) { camera.fov = fovT; camera.updateProjectionMatrix(); }
     const wantX = fpMode; if (wantX !== xhairOn) { xhairOn = wantX; const x = $('crosshair'); if (x) x.style.display = wantX ? 'block' : 'none'; }
     hudT -= dt; if (hudT <= 0) { hudT = 0.1; updateCompass(); }
   } else {
     vm.visible = false;
+    if (camera.fov !== BASE_FOV) { camera.fov = BASE_FOV; camera.updateProjectionMatrix(); }
     const a = t * 0.06;
     camera.position.set(Math.sin(a) * 70, 26, Math.cos(a) * 70 - 10);
     camLook.set(0, 6, -10); camera.lookAt(camLook);
