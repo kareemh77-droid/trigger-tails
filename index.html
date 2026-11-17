@@ -43,6 +43,8 @@
   #fpBtn { pointer-events: auto; position: absolute; top: calc(128px + var(--safe-t)); right: calc(12px + var(--safe-r)); width: 56px; height: 38px; border: 0; padding: 0; font-size: 13px; font-weight: 800; color: #5a3a1a; touch-action: manipulation; }
   .b-bot { background: #7a52c7; }
   #lvlRow { display: flex; gap: 8px; margin-top: 8px; }
+  #mapRow { display: flex; gap: 8px; margin-top: 4px; }
+  .tog.map.sel { border-color: #3a9ad9; background: #e6f4fd; color: #1d5f8f; }
   #modeRow { display: flex; gap: 8px; margin-top: 10px; }
   .tog.mode.sel { border-color: #d9822b; background: #fff1df; color: #8a4b0f; }
   #modeNote, #itemNote { font-size: 12px; margin: 5px 0 0; }
@@ -103,6 +105,23 @@
   #reloadBtn span { display: block; font-size: 22px; }
   #reloadBtn.busy { filter: grayscale(.75) brightness(.85); }
   @media (max-width: 520px) { #reloadBtn { right: calc(132px + var(--safe-r)); bottom: calc(158px + var(--safe-b)); } }
+  /* First person: a second stick on the right turns the camera, and the buttons move up out of its way */
+  #lookZone { position: absolute; right: 0; bottom: 0; width: 50%; height: 55%; pointer-events: auto; touch-action: none; display: none; }
+  #lookBase { position: absolute; right: calc(28px + var(--safe-r)); bottom: calc(28px + var(--safe-b)); width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,.22); border: 3px solid rgba(255,255,255,.55); pointer-events: none; }
+  #lookKnob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+  body.fp #lookZone { display: block; }
+  body.fp #jumpBtn { right: calc(176px + var(--safe-r)); bottom: calc(34px + var(--safe-b)); width: 88px; height: 88px; font-size: 18px; }
+  body.fp #fireBtn { right: calc(90px + var(--safe-r)); bottom: calc(172px + var(--safe-b)); }
+  body.fp #reloadBtn { right: calc(196px + var(--safe-r)); bottom: calc(176px + var(--safe-b)); }
+  body.fp #weapBtn { right: calc(196px + var(--safe-r)); bottom: calc(250px + var(--safe-b)); }
+  @media (max-width: 520px) {
+    body.fp #stickBase { width: 112px; height: 112px; left: calc(16px + var(--safe-l)); bottom: calc(24px + var(--safe-b)); }
+    body.fp #lookBase { width: 112px; height: 112px; right: calc(16px + var(--safe-r)); bottom: calc(24px + var(--safe-b)); }
+    body.fp #jumpBtn { right: auto; left: 50%; margin-left: -38px; bottom: calc(34px + var(--safe-b)); width: 76px; height: 76px; font-size: 16px; }
+    body.fp #fireBtn { right: calc(24px + var(--safe-r)); bottom: calc(178px + var(--safe-b)); }
+    body.fp #reloadBtn { right: calc(128px + var(--safe-r)); bottom: calc(186px + var(--safe-b)); }
+    body.fp #weapBtn { right: calc(24px + var(--safe-r)); bottom: calc(282px + var(--safe-b)); }
+  }
   #charGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 6px; }
   .ch { position: relative; border: 2px solid #e2d6bc; border-radius: 12px; background: #fff; padding: 3px 1px 3px; font-size: 11px; font-weight: 700; color: #6b5c44; touch-action: manipulation; cursor: pointer; line-height: 1.1; font-family: inherit; }
   .ch img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; pointer-events: none; }
@@ -139,6 +158,7 @@
 <div id="controls" class="hidden">
   <div id="camZone"></div>
   <div id="stickZone"><div id="stickBase"><div id="stickKnob"></div></div></div>
+  <div id="lookZone"><div id="lookBase"><div id="lookKnob"></div></div></div>
   <button id="weapBtn" class="hidden">Pistol<small>15 / 15</small></button>
   <button id="fireBtn" class="rbtn hidden">FIRE</button>
   <button id="reloadBtn" class="rbtn hidden"><span>🔄</span>RELOAD</button>
@@ -153,6 +173,9 @@
     <div class="pickLbl">Choose your character</div>
     <div id="charGrid"></div>
     <div id="loadInfo" class="sub"></div>
+    <div class="pickLbl">Choose your map</div>
+    <div id="mapRow"><button class="tog map" data-m="0">🏝️ Island</button><button class="tog map" data-m="1">☁️ Sky Islands</button></div>
+    <div id="mapNote" class="sub"></div>
     <button class="btn b-single" id="singleBtn">Single Player</button>
     <div id="modeRow"><button class="tog mode" data-g="0">⚔️ Deathmatch</button><button class="tog mode" data-g="1">🎯 Gun Game</button></div>
     <div id="modeNote" class="sub"></div>
@@ -227,7 +250,9 @@ errBox.onclick = () => { errBox.style.display = 'none'; };
 function reportErr(msg) { errBox.style.display = 'block'; errBox.textContent += (errBox.textContent ? '\n' : '') + '⚠ ' + msg; }
 window.addEventListener('error', e => reportErr((e.message || 'Error') + (e.lineno ? ' (line ' + e.lineno + ')' : '')));
 window.addEventListener('unhandledrejection', e => reportErr('Promise: ' + (e.reason && e.reason.message || e.reason)));
-function safe(name, fn) { try { return fn(); } catch (e) { reportErr(name + ': ' + (e && e.message || e)); console.error(e); return null; } }
+const WORLD0 = []; let worldSink = null;       // every object of the island map (so the sky map can hide it)
+const WORLD0_BLOCKS = /^(clouds|tower|walkway|ruins mesh|ruin site|trees|bushes|rocks|grass|pollen|structures)/;
+function safe(name, fn) { const prev = worldSink; if (WORLD0_BLOCKS.test(name)) worldSink = WORLD0; try { return fn(); } catch (e) { reportErr(name + ': ' + (e && e.message || e)); console.error(e); return null; } finally { worldSink = prev; } }
 
 /* ---------- Block scrolling / zoom ---------- */
 document.addEventListener('touchmove', e => { if (e.target.tagName !== 'INPUT' && !(e.target.closest && e.target.closest('.card'))) e.preventDefault(); }, { passive: false });
@@ -395,6 +420,7 @@ function synthSfx(name, vol) {
   else if (name === 'flame') { noise(0.2, 0.2 * vol, 1700); }
   else if (name === 'freeze') { tone('sine', 1500, 600, 0.16, 0.1 * vol); tone('triangle', 2300, 900, 0.12, 0.05 * vol); noise(0.05, 0.08 * vol, 5000); }
   else if (name === 'bounce') { tone('triangle', 270, 150, 0.06, 0.1 * vol); }
+  else if (name === 'boing') { tone('sine', 200, 760, 0.3, 0.24 * vol); tone('triangle', 300, 1000, 0.22, 0.08 * vol); }
   else if (name === 'tick') { tone('triangle', 2600, 1700, 0.045, 0.2 * vol); noise(0.02, 0.1 * vol, 6000); }
   else if (name === 'tickbig') { tone('triangle', 1900, 900, 0.09, 0.26 * vol); tone('sine', 520, 260, 0.1, 0.12 * vol); noise(0.03, 0.12 * vol, 5000); }
 }
@@ -444,6 +470,7 @@ function perfTick(dt) {
 
 const SKY_TOP = 0x5d9ad6, SKY_HOR = 0xcfe6ee;
 const scene = new THREE.Scene();
+{ const _add = scene.add; scene.add = function () { if (worldSink) for (let i = 0; i < arguments.length; i++) worldSink.push(arguments[i]); return _add.apply(this, arguments); }; }
 scene.background = col3(SKY_HOR);
 scene.fog = new THREE.Fog(SKY_HOR, 45, 175);
 const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 600);
@@ -551,16 +578,379 @@ function merge(list) {
 const jitter = (c, r, amt) => c.offsetHSL(0, 0, (r() - 0.5) * amt);
 
 /* ---------- Island terrain ---------- */
-const ISLAND_R = 105, WATER_Y = 0;
+const ISLAND_R = 105; let WATER_Y = 0, WORLD_R = 118, MAPR = 112;      // WATER_Y is 'how low is the void': the sea on the island map, the clouds on the sky map
 const SPAWN = { x: 0, z: 80 }, TOWER = { x: 0, z: -44 };
 // Big landmarks (castle, ship, cottage): the ground is levelled under them.  lvl = ground height, r = flat radius.
+// ===== Sky Islands: a second map. Pure data + math (no THREE) so the game, the tests and the preview all share it. =====
+// Floating islands joined by rope bridges (all axis-aligned, so the game's box colliders fit them exactly), a giant oak in the middle
+// you can climb by leaf pads, small pines with sniper perches, bounce mushrooms and a sea of clouds below.
+const SKYW = (() => {
+  'use strict';
+  const PI = Math.PI, G = 26;                         // G: the game's gravity (GRAV = -26)
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const ss = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const lerp = (a, b, t) => a + (b - a) * t;
+  function rngf(seed) { let a = seed | 0; return function () { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const hash = (i, j) => { let h = (Math.imul(i, 374761393) + Math.imul(j, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967295; };
+  function vnoise(x, z) { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz); return lerp(lerp(hash(i, j), hash(i + 1, j), u), lerp(hash(i, j + 1), hash(i + 1, j + 1), u), v); }
+  const hex = h => [(h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255];
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const KILL_Y = -2, WORLD_R = 105, SEA_Y = 3;
+
+  // ---------------------------------------------------------------- layout
+  const ISL = [];
+  function addIsl(name, kind, x, z, R, y) { const o = { id: ISL.length, name, kind, x, z, R, y }; ISL.push(o); return o; }
+  const hub = addIsl('Great Oak', 'hub', 0, 0, 17, 30);
+  const S = addIsl('South', 'outer', 0, 38, 10, 28), N = addIsl('North', 'outer', 0, -38, 10, 28);
+  const E = addIsl('East', 'outer', 38, 0, 10, 32), W = addIsl('West', 'outer', -38, 0, 10, 32);
+  const SE = addIsl('SE', 'corner', 38, 38, 4.8, 30), SW = addIsl('SW', 'corner', -38, 38, 4.8, 30);
+  const NE = addIsl('NE', 'corner', 38, -38, 4.8, 30), NW = addIsl('NW', 'corner', -38, -38, 4.8, 30);
+
+  // ground height of one island at (x,z) relative to its centre — also used for the mesh, so the two always agree
+  function topY(o, x, z) {
+    const dx = x - o.x, dz = z - o.z, r = Math.sqrt(dx * dx + dz * dz), flat = 1 - ss(o.R - 5, o.R - 2.5, r);
+    let y = o.y + (0.16 * Math.sin(dx * 0.33 + o.id * 1.7) * Math.sin(dz * 0.29 + o.id * 0.6) + 0.07 * Math.sin(dx * 0.8 + dz * 0.65)) * flat;
+    return y - 0.3 * ss(o.R - 0.9, o.R, r);
+  }
+  function H(x, z) {
+    for (let i = 0; i < ISL.length; i++) {
+      const o = ISL[i], dx = x - o.x, dz = z - o.z;
+      if (dx > o.R || dx < -o.R || dz > o.R || dz < -o.R) continue;
+      if (dx * dx + dz * dz < o.R * o.R) return topY(o, x, z);
+    }
+    return -1000;
+  }
+
+  const boxes = [], cyls = [];
+  const addBox = (cx, cz, hx, hz, bot, top) => boxes.push({ x: cx, z: cz, hx, hz, bot, top });
+  const addCyl = (x, z, r, bot, top) => cyls.push({ x, z, r, bot, top });
+
+  // ---- bridges (always along x or z)
+  const BR = [];
+  function bridge(a, b) {
+    const alongX = Math.abs(b.x - a.x) > Math.abs(b.z - a.z), dir = alongX ? Math.sign(b.x - a.x) : Math.sign(b.z - a.z), lat = alongX ? a.z : a.x;
+    const sa = (alongX ? a.x : a.z) + dir * (a.R - 0.6), sb = (alongX ? b.x : b.z) - dir * (b.R - 0.6), L = Math.abs(sb - sa), n = Math.ceil(L / 1.7);
+    const y0 = a.y - 0.02, y1 = b.y - 0.02, w = 3.0, br = { id: BR.length, a: a.id, b: b.id, alongX, dir, lat, sa, sb, L, n, w, y0, y1, segs: [] };
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n, s = sa + dir * L * t, top = y0 + (y1 - y0) * t, len = L / n;
+      const seg = { s, len, top, cx: alongX ? s : lat, cz: alongX ? lat : s, hx: alongX ? len / 2 : w / 2, hz: alongX ? w / 2 : len / 2 };
+      br.segs.push(seg); addBox(seg.cx, seg.cz, seg.hx, seg.hz, top - 0.4, top);
+    }
+    const wp = (s) => alongX ? [s, lat] : [lat, s];
+    br.pa = wp(sa - dir * 2.6); br.pb = wp(sb + dir * 2.6);          // walk-to points just inside each end island
+    BR.push(br); return br;
+  }
+  [[hub, S], [hub, N], [hub, E], [hub, W], [S, SE], [SE, E], [E, NE], [NE, N], [N, NW], [NW, W], [W, SW], [SW, S]].forEach(([a, b]) => bridge(a, b));
+
+  // ---- the great oak on the middle island: a spiral of leaf pads up to a crown
+  const OAK = { x: 0, z: 0, trunkR: 2.4, crownTop: 45, crownR: 6.6, pads: [] };
+  for (let k = 0; k < 10; k++) {
+    const a = (200 + 47 * k) * PI / 180, r = 7.2, top = hub.y + 1.35 * (k + 1);
+    OAK.pads.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, r: 2.5, top, a });
+  }
+  addCyl(0, 0, OAK.trunkR, hub.y - 1, OAK.crownTop - 0.7);
+  addCyl(0, 0, OAK.crownR, OAK.crownTop - 0.7, OAK.crownTop);
+  OAK.pads.forEach(p => addCyl(p.x, p.z, p.r, p.top - 0.55, p.top));
+
+  // ---- a pine with a perch on every outer island
+  const PINES = [];
+  function pine(o, ox, oz, a0) {
+    const cx = o.x + ox, cz = o.z + oz, base = o.y, p = { x: cx, z: cz, base, trunkR: 1.15, pads: [], perchTop: base + 7.75, perchR: 3.3, island: o.id };
+    for (let k = 0; k < 4; k++) { const a = (a0 + 80 * k) * PI / 180, r = 3.6; p.pads.push({ x: cx + Math.cos(a) * r, z: cz + Math.sin(a) * r, r: 1.8, top: base + 1.55 * (k + 1), a }); }
+    addCyl(cx, cz, p.trunkR, base - 1, p.perchTop - 0.6);
+    addCyl(cx, cz, p.perchR, p.perchTop - 0.6, p.perchTop);
+    p.pads.forEach(q => addCyl(q.x, q.z, q.r, q.top - 0.5, q.top));
+    PINES.push(p); return p;
+  }
+  const pineS = pine(S, 0, 5.2, -100), pineN = pine(N, 0, -5.2, 80), pineE = pine(E, 5.2, 0, 170), pineW = pine(W, -5.2, 0, -10);
+
+  // ---- rocks to hide behind
+  const ROCKS = [];
+  function rock(x, z, rx, ry, rot) { const base = H(x, z); ROCKS.push({ x, z, rx, ry, base, rot: rot || 0 }); addCyl(x, z, rx * 0.8, base - 1, base + ry * 0.85); }
+  for (let k = 0; k < 8; k++) { const a = (22.5 + 45 * k) * PI / 180; rock(Math.cos(a) * 14.5, Math.sin(a) * 14.5, 1.5 + (k % 3) * 0.2, 1.5 + (k % 2) * 0.4, k); }
+  [[S, -5.5, 1.5], [S, 5.5, -1], [N, 5.5, -1.5], [N, -5.5, 1], [E, -2, 5.5], [E, 2, -5.5], [W, 2, 5.5], [W, -2, -5.5]].forEach(([o, dx, dz], i) => rock(o.x + dx, o.z + dz, 1.3 + (i % 2) * 0.25, 1.3 + (i % 3) * 0.2, i + 3));
+
+  // ---- bounce mushrooms: touching one throws you up and across, towards a target spot
+  const PADS = [];
+  function pad(x, z, tx, ty, tz, above) {
+    const base = H(x, z), top = base + 1.25, dx = tx - x, dz = tz - z, dist = Math.hypot(dx, dz) || 1, apex = Math.max(ty, top) + (above || 1.8);
+    const vy = Math.sqrt(2 * G * (apex - top)), airT = vy / G + Math.sqrt(2 * (apex - ty) / G);
+    PADS.push({ x, z, base, top, r: 1.55, vy, hv: dist / airT, dx: dx / dist, dz: dz / dist, airT, tx, ty, tz });
+  }
+  [135, 315].forEach(deg => { const a = deg * PI / 180; pad(Math.cos(a) * 12, Math.sin(a) * 12, Math.cos(a) * 3.6, OAK.crownTop, Math.sin(a) * 3.6, 1.6); });
+  PINES.forEach((p, i) => {
+    const o = ISL[p.island], inward = Math.atan2(o.z - p.z, o.x - p.x), px = p.x + Math.cos(inward) * 7.2, pz = p.z + Math.sin(inward) * 7.2;
+    pad(px, pz, p.x + Math.cos(inward) * 2.2, p.perchTop, p.z + Math.sin(inward) * 2.2, 1.8);
+  });
+
+  // ---- where things are
+  const SPAWNS = [{ x: 0, z: 35.5, yaw: PI }, { x: 0, z: -35.5, yaw: 0 }, { x: 34.5, z: 0, yaw: PI * 1.5 }, { x: -34.5, z: 0, yaw: PI * 0.5 }];
+  function pickSpawn(ox, oz, hasOpp) { let best = 0, bd = -1; SPAWNS.forEach((s, i) => { const d = hasOpp ? Math.hypot(s.x - ox, s.z - oz) : 0; if (d > bd) { bd = d; best = i; } }); return SPAWNS[best]; }
+  const pol = (r, deg) => [Math.cos(deg * PI / 180) * r, Math.sin(deg * PI / 180) * r];
+  const PICK = [                               // [x, z, forced weapon (-1 random), height or null]
+    [-3.5, 33, 0, null], [3.5, 33, 4, null], [3.5, -33, 0, null], [-3.5, -33, 4, null],           // close to each start: pistol, katana
+    [...pol(12, 45), -1, null], [...pol(12, 225), -1, null], [...pol(15.4, 135), -1, null], [...pol(15.4, 315), -1, null],
+    [pol(4.3, 0)[0], pol(4.3, 0)[1], 2, OAK.crownTop + 0.9],                                       // a rocket launcher in the crown
+    [38, 38, -1, null], [-38, 38, -1, null], [38, -38, -1, null], [-38, -38, -1, null],
+    [pineS.x + 0, pineS.z - 2.4, 5, pineS.perchTop + 0.9], [pineN.x, pineN.z + 2.4, 5, pineN.perchTop + 0.9],      // crossbows
+    [pineE.x - 2.4, pineE.z, 10, pineE.perchTop + 0.9], [pineW.x + 2.4, pineW.z, 11, pineW.perchTop + 0.9],        // a sniper rifle and a minigun
+    [36, -5, -1, null], [-33, 6, -1, null],
+  ];
+  const POWER = [                              // [x, z, kind (0 health, 1 speed, 2 shield, 3 double damage, 4 ammo), height or null]
+    [pol(4.3, 180)[0], pol(4.3, 180)[1], 3, OAK.crownTop + 0.9],
+    [0, 31.5, 0, null], [0, -31.5, 0, null],
+    [12, 0, 4, null], [-12, 0, 4, null],
+    [40, 40, 1, null], [-40, 40, 2, null], [-40, -40, 1, null], [40, -40, 2, null],
+    [34.5, 4, 4, null], [-34.5, -4, 0, null],
+  ];
+  const ACORNS = [];
+  BR.forEach(b => { const m = b.segs[b.n >> 1]; ACORNS.push([m.cx, m.top + 0.9, m.cz]); });
+  PINES.forEach(p => ACORNS.push([p.x + Math.cos(0.8) * 2.4, p.perchTop + 0.9, p.z + Math.sin(0.8) * 2.4]));
+  [[38, 38], [-38, 38], [38, -38], [-38, -38]].forEach(([x, z]) => ACORNS.push([x + (x > 0 ? -1.5 : 1.5), 30.9, z + (z > 0 ? -1.5 : 1.5)]));
+  [0, 90, 180, 270].forEach(d => { const [x, z] = pol(11.5, d + 45); ACORNS.push([x, H(x, z) + 0.9, z]); });
+  [90, 210, 330].forEach(d => { const [x, z] = pol(4.6, d); ACORNS.push([x, OAK.crownTop + 0.9, z]); });
+  const GOAL = { x: 0, y: OAK.crownTop + 2.5, z: 0 };
+
+  // ---------------------------------------------------------------- navigation for the computer player
+  function zoneAt(x, z) {
+    for (const o of ISL) { const dx = x - o.x, dz = z - o.z; if (dx * dx + dz * dz < (o.R + 0.4) * (o.R + 0.4)) return o.id; }
+    for (const b of BR) {
+      const s = b.alongX ? x : z, l = b.alongX ? z : x, t = (s - b.sa) * b.dir;
+      if (t >= -0.6 && t <= b.L + 0.6 && Math.abs(l - b.lat) < b.w / 2 + 0.4) return 100 + b.id;
+    }
+    return -1;
+  }
+  function nearestIsland(x, z) { let best = 0, bd = 1e9; for (const o of ISL) { const d = Math.hypot(x - o.x, z - o.z) - o.R; if (d < bd) { bd = d; best = o.id; } } return best; }
+  const ADJ = ISL.map(() => []);
+  BR.forEach(b => { ADJ[b.a].push({ to: b.b, br: b.id, from: 'a' }); ADJ[b.b].push({ to: b.a, br: b.id, from: 'b' }); });
+  const DIST = ISL.map((_, t) => { const d = ISL.map(() => 99); d[t] = 0; const q = [t]; while (q.length) { const u = q.shift(); ADJ[u].forEach(e => { if (d[e.to] > d[u] + 1) { d[e.to] = d[u] + 1; q.push(e.to); } }); } return d; });
+  // the next place to walk to on the way from (fx,fz) to (tx,tz), or null when it is on the same island (walk straight there)
+  function route(fx, fz, tx, tz) {
+    let zf = zoneAt(fx, fz), zt = zoneAt(tx, tz);
+    if (zt < 0) zt = nearestIsland(tx, tz);
+    if (zt >= 100) { const b = BR[zt - 100]; zt = Math.hypot(tx - ISL[b.a].x, tz - ISL[b.a].z) < Math.hypot(tx - ISL[b.b].x, tz - ISL[b.b].z) ? b.a : b.b; }
+    if (zf < 0) zf = nearestIsland(fx, fz);
+    if (zf >= 100) {                                                                    // on a bridge: carry on to whichever end is closer to the goal
+      const b = BR[zf - 100], da = DIST[zt][b.a], db = DIST[zt][b.b];
+      const towardB = db < da || (db === da && Math.hypot(fx - b.pb[0], fz - b.pb[1]) < Math.hypot(fx - b.pa[0], fz - b.pa[1]));
+      return towardB ? b.pb : b.pa;
+    }
+    if (zf === zt) return null;
+    let pick = null;
+    for (const e of ADJ[zf]) if (DIST[zt][e.to] === DIST[zt][zf] - 1 && (!pick || Math.hypot(fx - ISL[e.to].x, fz - ISL[e.to].z) < Math.hypot(fx - ISL[pick.to].x, fz - ISL[pick.to].z))) pick = e;
+    if (!pick) return null;
+    const b = BR[pick.br], start = pick.from === 'a' ? b.pa : b.pb, end = pick.from === 'a' ? b.pb : b.pa;
+    const ex = end[0] - start[0], ez = end[1] - start[1], el = Math.hypot(ex, ez) || 1, ux = ex / el, uz = ez / el, rx = fx - start[0], rz = fz - start[1];
+    return (rx * ux + rz * uz > -1.6 && Math.abs(rx * uz - rz * ux) < 1.8) ? end : start;      // lined up with the bridge: go along it; otherwise get to its mouth first
+  }
+  // after a fall, come back a little way in from the edge
+  function safeNudge(p) {
+    const z = zoneAt(p.x, p.z);
+    if (z >= 0 && z < 100) { const o = ISL[z], dx = p.x - o.x, dz = p.z - o.z, r = Math.hypot(dx, dz), lim = o.R - 1.6; if (r > lim) { p.x = o.x + dx / r * lim; p.z = o.z + dz / r * lim; } }
+    return p;
+  }
+
+  // ---------------------------------------------------------------- meshes (flat arrays: position, normal, colour)
+  const C = {
+    grassA: hex(0x6aa83a), grassB: hex(0x8fc24a), grassC: hex(0x4f8f33), dirt: hex(0x8a6540), rock: hex(0x9a8f84), rockD: hex(0x5d5550), rockL: hex(0xb8aea0), moss: hex(0x6f9a45),
+    bark: hex(0x7a5233), bark2: hex(0x5a3b24), leaf: hex(0x3f8f3a), leaf2: hex(0x74b946), leafD: hex(0x357c3c), plank: hex(0xa97b4a), plank2: hex(0x946a3c), rope: hex(0xd9c79b),
+    capRed: hex(0xe2412f), capD: hex(0xb12a22), stem: hex(0xf3ead7), spot: hex(0xffffff), cloud: hex(0xffffff), cloudD: hex(0xc9d3e8),
+  };
+  function Mesh() { return { p: [], n: [], c: [] }; }
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const tmpC = [0, 0, 0];
+  // one triangle; if `hint` (a point inside the solid) is given the winding is fixed so it faces away from it
+  function tri(m, A, B, Cc, colFn, hint, nA, nB, nC) {
+    let n = norm(cross(sub(B, A), sub(Cc, A)));
+    if (hint) { const g = [(A[0] + B[0] + Cc[0]) / 3 - hint[0], (A[1] + B[1] + Cc[1]) / 3 - hint[1], (A[2] + B[2] + Cc[2]) / 3 - hint[2]]; if (n[0] * g[0] + n[1] * g[1] + n[2] * g[2] < 0) { const t = B; B = Cc; Cc = t; n = [-n[0], -n[1], -n[2]]; const tn = nB; nB = nC; nC = tn; } }
+    const P = [A, B, Cc], NN = [nA || n, nB || n, nC || n];
+    for (let i = 0; i < 3; i++) { m.p.push(P[i][0], P[i][1], P[i][2]); m.n.push(NN[i][0], NN[i][1], NN[i][2]); colFn(tmpC, P[i][0], P[i][1], P[i][2], NN[i][0], NN[i][1], NN[i][2]); m.c.push(tmpC[0], tmpC[1], tmpC[2]); }
+  }
+  const flat = col => (o) => { o[0] = col[0]; o[1] = col[1]; o[2] = col[2]; };
+  function box(m, cx, cy, cz, sx, sy, sz, colFn) {
+    const x0 = cx - sx / 2, x1 = cx + sx / 2, y0 = cy - sy / 2, y1 = cy + sy / 2, z0 = cz - sz / 2, z1 = cz + sz / 2, h = [cx, cy, cz];
+    const v = [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]];
+    [[0, 1, 2, 3], [5, 4, 7, 6], [4, 0, 3, 7], [1, 5, 6, 2], [3, 2, 6, 7], [4, 5, 1, 0]].forEach(f => { tri(m, v[f[0]], v[f[1]], v[f[2]], colFn, h); tri(m, v[f[0]], v[f[2]], v[f[3]], colFn, h); });
+  }
+  function tube(m, p0, p1, r0, r1, seg, colFn, capTop, capBot) {
+    const d = norm(sub(p1, p0)), u = Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0], a = norm(cross(d, u)), b = cross(d, a), mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2];
+    const ring = (p, r, i) => { const t = i / seg * PI * 2, c = Math.cos(t), s = Math.sin(t); return [p[0] + (a[0] * c + b[0] * s) * r, p[1] + (a[1] * c + b[1] * s) * r, p[2] + (a[2] * c + b[2] * s) * r]; };
+    for (let i = 0; i < seg; i++) {
+      const A = ring(p0, r0, i), B = ring(p0, r0, i + 1), Cc = ring(p1, r1, i + 1), D = ring(p1, r1, i), ax = [mid[0], mid[1], mid[2]];
+      const hintAt = (pt) => { const t = (pt[0] - p0[0]) * d[0] + (pt[1] - p0[1]) * d[1] + (pt[2] - p0[2]) * d[2]; return [p0[0] + d[0] * t, p0[1] + d[1] * t, p0[2] + d[2] * t]; };
+      tri(m, A, B, Cc, colFn, hintAt(A)); tri(m, A, Cc, D, colFn, hintAt(A));
+      if (capTop && r1 > 0.01) tri(m, D, Cc, p1, colFn, mid);
+      if (capBot && r0 > 0.01) tri(m, B, A, p0, colFn, mid);
+    }
+  }
+  // an icosphere with optional squash and bumps, flat shaded
+  const ICO = (() => {
+    const t = (1 + Math.sqrt(5)) / 2, v = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]].map(norm);
+    const f = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
+    const cache = {};
+    return function (detail) {
+      if (cache[detail]) return cache[detail];
+      let V = v.map(a => a.slice()), F = f.map(a => a.slice());
+      for (let d = 0; d < detail; d++) {
+        const mp = {}, nf = [], mid = (i, j) => { const k = i < j ? i + '_' + j : j + '_' + i; if (mp[k] === undefined) { V.push(norm([(V[i][0] + V[j][0]) / 2, (V[i][1] + V[j][1]) / 2, (V[i][2] + V[j][2]) / 2])); mp[k] = V.length - 1; } return mp[k]; };
+        F.forEach(([a, b, c]) => { const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a); nf.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]); });
+        F = nf;
+      }
+      return cache[detail] = { V, F };
+    };
+  })();
+  function blob(m, cx, cy, cz, rx, ry, rz, detail, colFn, bump, seed, clipY) {
+    const { V, F } = ICO(detail), P = V.map(u => { const k = 1 + (hash(Math.round(u[0] * 40) + seed, Math.round(u[2] * 40 + u[1] * 70)) - 0.5) * (bump || 0); let y = u[1] * ry * k; if (clipY !== undefined && y < clipY) y = clipY; return [cx + u[0] * rx * k, cy + y, cz + u[2] * rz * k]; }), h = [cx, cy, cz];
+    F.forEach(([a, b, c]) => tri(m, P[a], P[b], P[c], colFn, h));
+  }
+
+  const grassCol = (o) => (c, x, y, z, nx, ny, nz) => {
+    const n1 = vnoise(x * 0.16 + o.id * 7, z * 0.16), n2 = vnoise(x * 0.5, z * 0.5 + o.id), g = mix(mix(C.grassA, C.grassB, n1), C.grassC, ss(0.55, 0.9, n2) * 0.5);
+    const dx = x - o.x, dz = z - o.z, r = Math.hypot(dx, dz), edge = ss(o.R - 1.4, o.R - 0.1, r), c2 = mix(g, C.dirt, edge * 0.95);
+    c[0] = c2[0]; c[1] = c2[1]; c[2] = c2[2];
+  };
+  const rockCol = (o) => (c, x, y, z, nx, ny, nz) => {
+    const depth = clamp((o.y - y) / (o.R * 1.25), 0, 1), s = vnoise(x * 0.35, y * 0.9 + z * 0.35), g = mix(mix(C.rockL, C.rock, s), C.rockD, depth * 0.85), d = ss(0.0, 0.08, depth), c2 = mix(C.dirt, g, d);
+    c[0] = c2[0]; c[1] = c2[1]; c[2] = c2[2];
+  };
+  const woodCol = (a, b) => (c, x, y, z, nx, ny, nz) => { const t = vnoise(x * 1.7, z * 1.7 + y * 0.6), g = mix(a, b, t); c[0] = g[0]; c[1] = g[1]; c[2] = g[2]; };
+  const leafCol = (c, x, y, z, nx, ny, nz) => { const t = ss(-0.4, 0.9, ny), n = vnoise(x * 0.8, z * 0.8 + y * 0.5), g = mix(mix(C.leafD, C.leaf, t), C.leaf2, ss(0.5, 1, ny) * (0.4 + 0.5 * n)); c[0] = g[0]; c[1] = g[1]; c[2] = g[2]; };
+
+  function buildIsland(m, o, rnd, low) {
+    const segs = o.R > 12 ? (low ? 40 : 64) : o.R > 7 ? (low ? 28 : 44) : (low ? 20 : 28), K = Math.max(3, Math.round(o.R / (low ? 3.2 : 2.4))), gc = grassCol(o);
+    const radii = []; for (let i = 0; i <= K; i++) radii.push((o.R - 0.9) * i / K); radii.push(o.R);
+    const P = radii.map((r, i) => { const row = []; for (let s = 0; s < segs; s++) { const a = s / segs * PI * 2, x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r; row.push([x, topY(o, x, z), z]); } return row; });
+    const below = [o.x, o.y - 40, o.z];                           // the top faces away from here, i.e. upwards
+    const nrmAt = (x, z) => { const e = 0.45; return norm([topY(o, x - e, z) - topY(o, x + e, z), 2 * e, topY(o, x, z - e) - topY(o, x, z + e)]); };
+    for (let i = 0; i < radii.length - 1; i++) for (let s = 0; s < segs; s++) {
+      const s2 = (s + 1) % segs, a = P[i][s], b = P[i][s2], c = P[i + 1][s2], d = P[i + 1][s];
+      if (i === 0) { tri(m, [o.x, topY(o, o.x, o.z), o.z], d, c, gc, below, nrmAt(o.x, o.z), nrmAt(d[0], d[2]), nrmAt(c[0], c[2])); continue; }
+      tri(m, a, d, c, gc, below, nrmAt(a[0], a[2]), nrmAt(d[0], d[2]), nrmAt(c[0], c[2])); tri(m, a, c, b, gc, below, nrmAt(a[0], a[2]), nrmAt(c[0], c[2]), nrmAt(b[0], b[2]));
+    }
+    // the rocky underside, a jagged bell that ends in a point
+    const D = o.R * 1.25 + 2, prof = [[0, 1], [0.07, 0.985], [0.22, 0.9], [0.45, 0.68], [0.7, 0.4], [0.9, 0.16], [1, 0.0]], hintP = [o.x, o.y - D * 0.4, o.z], rim = P[radii.length - 1];
+    const ringAt = (pi, s) => {
+      const [t, f] = prof[pi], a = s / segs * PI * 2, j = pi === 0 ? 1 : 0.82 + rnd() * 0.3 + (pi === prof.length - 1 ? 0 : 0), r = o.R * f * j;
+      if (pi === 0) return rim[s % segs];
+      return [o.x + Math.cos(a) * r, o.y - 0.3 - D * t + (rnd() - 0.5) * 0.6 * (1 - t), o.z + Math.sin(a) * r];
+    };
+    const rows = prof.map((_, pi) => { const row = []; for (let s = 0; s < segs; s++) row.push(ringAt(pi, s)); return row; }), rc = rockCol(o);
+    for (let pi = 0; pi < prof.length - 1; pi++) for (let s = 0; s < segs; s++) {
+      const s2 = (s + 1) % segs, a = rows[pi][s], b = rows[pi][s2], c = rows[pi + 1][s2], d = rows[pi + 1][s];
+      tri(m, a, b, c, rc, hintP); if (pi < prof.length - 2) tri(m, a, c, d, rc, hintP);
+    }
+    // roots dangling underneath
+    const nr = o.kind === 'hub' ? 6 : o.kind === 'outer' ? 3 : 2;
+    for (let k = 0; k < nr; k++) {
+      const a = (k + rnd() * 0.5) / nr * PI * 2, r0 = o.R * (0.25 + rnd() * 0.35), len = (o.kind === 'hub' ? 7 : 4) + rnd() * 4, x0 = o.x + Math.cos(a) * r0, z0 = o.z + Math.sin(a) * r0;
+      const yTop = o.y - 0.3 - D * (r0 / o.R < 0.5 ? 0.18 : 0.3), x1 = x0 + (rnd() - 0.5) * 2, z1 = z0 + (rnd() - 0.5) * 2;
+      tube(m, [x0, yTop + 1.2, z0], [x1, yTop - len, z1], 0.5, 0.06, 6, woodCol(C.bark, C.bark2), false, false);
+    }
+  }
+  function buildBridge(m, b) {
+    const wc1 = woodCol(C.plank, C.plank2), wc2 = woodCol(C.plank2, C.bark), rc = flat(C.rope), pc = woodCol(C.bark, C.bark2);
+    b.segs.forEach((s, i) => {
+      box(m, s.cx, s.top - 0.2, s.cz, s.hx * 2 - 0.05, 0.4, s.hz * 2 - 0.05, i % 2 ? wc1 : wc2);
+      const sides = b.alongX ? [[s.cx, s.cz - 1.42], [s.cx, s.cz + 1.42]] : [[s.cx - 1.42, s.cz], [s.cx + 1.42, s.cz]];
+      sides.forEach(([x, z]) => box(m, x, s.top + 0.93, z, b.alongX ? s.len : 0.07, 0.07, b.alongX ? 0.07 : s.len, rc));
+      if (i % 2 === 0) sides.forEach(([x, z]) => box(m, x, s.top + 0.5, z, 0.15, 1.0, 0.15, pc));
+    });
+    // two thick ropes beneath, from end to end, so it reads as hanging
+    const e0 = b.segs[0], e1 = b.segs[b.n - 1];
+    [-1.1, 1.1].forEach(o => { const p0 = b.alongX ? [e0.cx, e0.top - 0.6, b.lat + o] : [b.lat + o, e0.top - 0.6, e0.cz], p1 = b.alongX ? [e1.cx, e1.top - 0.6, b.lat + o] : [b.lat + o, e1.top - 0.6, e1.cz]; tube(m, p0, p1, 0.12, 0.12, 5, rc, true, true); });
+  }
+  function buildOak(m, rnd, low) {
+    const bw = woodCol(C.bark, C.bark2), lc = leafCol;
+    tube(m, [0, hub.y - 3, 0], [0, OAK.crownTop - 0.7, 0], 3.3, 2.1, 12, bw, false, false);
+    for (let k = 0; k < 6; k++) { const a = k / 6 * PI * 2 + 0.3; tube(m, [Math.cos(a) * 1.8, hub.y + 3.5, Math.sin(a) * 1.8], [Math.cos(a) * 5, hub.y - 0.3, Math.sin(a) * 5], 0.7, 0.35, 6, bw, false, false); }      // roots flaring out
+    // crown: a wide leafy platform
+    tube(m, [0, OAK.crownTop - 0.7, 0], [0, OAK.crownTop, 0], OAK.crownR, OAK.crownR, low ? 16 : 24, (c, x, y, z, nx, ny, nz) => { const g = ny > 0.5 ? mix(C.grassA, C.leaf2, vnoise(x * 0.4, z * 0.4)) : mix(C.leafD, C.bark2, 0.5); c[0] = g[0]; c[1] = g[1]; c[2] = g[2]; }, true, true);
+    OAK.pads.forEach(p => {
+      const a = Math.atan2(p.z, p.x);
+      tube(m, [Math.cos(a) * 2.0, p.top - 0.9, Math.sin(a) * 2.0], [p.x - Math.cos(a) * 1.2, p.top - 0.5, p.z - Math.sin(a) * 1.2], 0.6, 0.45, 6, bw, false, false);          // the branch each pad grows from
+      tube(m, [p.x, p.top - 0.55, p.z], [p.x, p.top, p.z], p.r, p.r, low ? 10 : 14, (c, x, y, z, nx, ny, nz) => { const g = ny > 0.5 ? mix(C.leaf2, C.grassB, vnoise(x * 0.9, z * 0.9)) : mix(C.leafD, C.leaf, 0.4); c[0] = g[0]; c[1] = g[1]; c[2] = g[2]; }, true, true);
+      blob(m, p.x, p.top - 0.9, p.z, p.r * 0.85, 0.7, p.r * 0.85, 1, lc, 0.25, 5);
+    });
+    // foliage hanging round and under the crown
+    const n1 = low ? 8 : 12;
+    for (let k = 0; k < n1; k++) { const a = (k + rnd() * 0.5) / n1 * PI * 2, r = 12.2 + rnd() * 1.6; blob(m, Math.cos(a) * r, 40.5 + rnd() * 3.5, Math.sin(a) * r, 4.2 + rnd() * 1.3, 3.0 + rnd() * 0.8, 4.2 + rnd() * 1.3, 1, lc, 0.3, k); }
+    const n2 = low ? 7 : 10;
+    for (let k = 0; k < n2; k++) { const a = (k + rnd() * 0.4) / n2 * PI * 2 + 0.2, r = 9.8 + rnd() * 1.2; blob(m, Math.cos(a) * r, 42.5 + rnd() * 1.5, Math.sin(a) * r, 3.3 + rnd(), 2.3 + rnd() * 0.5, 3.3 + rnd(), 1, lc, 0.3, 40 + k); }
+    for (let k = 0; k < 8; k++) { const a = k / 8 * PI * 2 + 0.4; blob(m, Math.cos(a) * 6.6, OAK.crownTop - 0.6, Math.sin(a) * 6.6, 1.5, 1.0, 1.5, 1, lc, 0.3, 90 + k); }          // a leafy lip round the crown edge
+  }
+  function buildPine(m, p, rnd, low) {
+    const bw = woodCol(C.bark, C.bark2), lc = leafCol;
+    tube(m, [p.x, p.base - 2, p.z], [p.x, p.perchTop - 0.6, p.z], 1.7, 1.15, 10, bw, false, false);
+    tube(m, [p.x, p.perchTop - 0.6, p.z], [p.x, p.perchTop, p.z], p.perchR, p.perchR, low ? 12 : 18, (c, x, y, z, nx, ny, nz) => { const g = ny > 0.5 ? mix(C.grassA, C.leaf2, vnoise(x * 0.5, z * 0.5)) : mix(C.leafD, C.bark2, 0.5); c[0] = g[0]; c[1] = g[1]; c[2] = g[2]; }, true, true);
+    p.pads.forEach(q => {
+      const a = Math.atan2(q.z - p.z, q.x - p.x);
+      tube(m, [p.x + Math.cos(a) * 1.0, q.top - 0.8, p.z + Math.sin(a) * 1.0], [q.x - Math.cos(a) * 0.6, q.top - 0.4, q.z - Math.sin(a) * 0.6], 0.4, 0.3, 6, bw, false, false);
+      tube(m, [q.x, q.top - 0.5, q.z], [q.x, q.top, q.z], q.r, q.r, low ? 8 : 12, (c, x, y, z, nx, ny, nz) => { const g = ny > 0.5 ? mix(C.leaf2, C.grassB, vnoise(x * 0.9, z * 0.9)) : mix(C.leafD, C.leaf, 0.4); c[0] = g[0]; c[1] = g[1]; c[2] = g[2]; }, true, true);
+      blob(m, q.x, q.top - 0.8, q.z, q.r * 0.8, 0.6, q.r * 0.8, 1, lc, 0.25, 7);
+    });
+    // a tuft on top of the trunk, up above the perch
+    tube(m, [p.x, p.perchTop, p.z], [p.x, p.perchTop + 4.2, p.z], 0.95, 0.5, 8, bw, true, false);
+    blob(m, p.x, p.perchTop + 4.6, p.z, 2.0, 1.5, 2.0, 1, lc, 0.3, 11);
+    for (let k = 0; k < 3; k++) { const a = k / 3 * PI * 2 + rnd(); blob(m, p.x + Math.cos(a) * 1.4, p.perchTop + 3.6 + rnd() * 0.5, p.z + Math.sin(a) * 1.4, 1.3, 1.0, 1.3, 1, lc, 0.3, 20 + k); }
+  }
+  function buildRock(m, r, low) {
+    const rc = (c, x, y, z, nx, ny, nz) => { const t = ss(0.3, 0.85, ny), g = mix(mix(C.rock, C.rockL, vnoise(x * 1.3, z * 1.3 + y)), C.moss, t * 0.9); c[0] = g[0]; c[1] = g[1]; c[2] = g[2]; };
+    blob(m, r.x, r.base + r.ry * 0.25, r.z, r.rx, r.ry, r.rx, low ? 1 : 1, rc, 0.32, (r.rot | 0) * 13, r.base - 0.2);
+  }
+  // a bounce mushroom, built round its own base point so the game can squash it
+  function buildPadMesh(p) {
+    const m = Mesh(), sc = flat(C.stem);
+    tube(m, [0, -0.2, 0], [0, 0.75, 0], 0.55, 0.38, 8, sc, false, false);
+    const cap = (c, x, y, z, nx, ny, nz) => { const w = Math.hypot(x, z) < 0.45 || (Math.abs(x * 3.1 + z * 2.3) % 1.25 < 0.28 && ny > 0.35 && y > 0.7); const g = w ? C.spot : mix(C.capD, C.capRed, ss(0.7, 1.2, y)); c[0] = g[0]; c[1] = g[1]; c[2] = g[2]; };
+    blob(m, 0, 0.62, 0, 1.6, 0.7, 1.6, 2, cap, 0.0, 3, 0.58);
+    const under = Mesh(); tube(under, [0, 0.58, 0], [0, 0.62, 0], 1.58, 1.58, 14, flat(C.stem), false, true);
+    for (let i = 0; i < under.p.length; i++) { m.p.push(under.p[i]); m.n.push(under.n[i]); m.c.push(under.c[i]); }
+    return m;
+  }
+  function buildCloudPuffs(m, rnd, low) {
+    const n = low ? 34 : 56;
+    for (let k = 0; k < n; k++) {
+      const a = rnd() * PI * 2, d = 18 + Math.pow(rnd(), 0.8) * 260, cx = Math.cos(a) * d, cz = Math.sin(a) * d, cy = -7 + rnd() * 9, r = 9 + rnd() * 13;
+      const cc = (c, x, y, z, nx, ny, nz) => { const g = mix(C.cloudD, C.cloud, ss(-0.3, 0.8, ny)); c[0] = g[0]; c[1] = g[1]; c[2] = g[2]; };
+      blob(m, cx, cy, cz, r, r * 0.34, r * 0.9, 1, cc, 0.25, k * 3);
+      if (rnd() < 0.6) blob(m, cx + r * 0.5, cy + r * 0.1, cz + r * 0.3, r * 0.6, r * 0.26, r * 0.55, 1, cc, 0.25, k * 3 + 1);
+    }
+  }
+  // distant floating rocks, only for the view
+  function buildFar(m, rnd, low) {
+    const n = low ? 9 : 14;
+    for (let k = 0; k < n; k++) {
+      const a = (k + rnd() * 0.6) / n * PI * 2, d = 105 + rnd() * 90, R = 5 + rnd() * 9, o = { id: 20 + k, kind: 'far', x: Math.cos(a) * d, z: Math.sin(a) * d, R, y: 6 + rnd() * 62 };
+      buildIsland(m, o, rnd, true);
+      if (rnd() < 0.6) { tube(m, [o.x, o.y - 0.5, o.z], [o.x, o.y + 4 + rnd() * 3, o.z], 0.7, 0.4, 6, woodCol(C.bark, C.bark2), false, false); blob(m, o.x, o.y + 6 + rnd() * 2, o.z, 2.4, 1.8, 2.4, 1, leafCol, 0.3, k); }
+    }
+  }
+
+  function buildMeshes(low) {
+    const rnd = rngf(2024), st = Mesh(), far = Mesh(), clouds = Mesh(), pads = [];
+    ISL.forEach(o => buildIsland(st, o, rnd, low));
+    BR.forEach(b => buildBridge(st, b));
+    buildOak(st, rnd, low); PINES.forEach(p => buildPine(st, p, rnd, low)); ROCKS.forEach(r => buildRock(st, r, low));
+    buildFar(far, rnd, low); buildCloudPuffs(clouds, rnd, low);
+    PADS.forEach(p => pads.push({ x: p.x, y: p.base, z: p.z, mesh: buildPadMesh(p) }));
+    const fin = m => ({ pos: new Float32Array(m.p), nrm: new Float32Array(m.n), col: new Float32Array(m.c) });
+    return { static: fin(st), far: fin(far), clouds: fin(clouds), pads: pads.map(p => ({ x: p.x, y: p.y, z: p.z, geo: fin(p.mesh) })) };
+  }
+
+  return { ISL, BR, OAK, PINES, ROCKS, PADS, SPAWNS, PICK, POWER, ACORNS, GOAL, boxes, cyls, H, KILL_Y, WORLD_R, SEA_Y, G, zoneAt, route, safeNudge, pickSpawn, buildMeshes, topY };
+})();
+
+let SKY_ON = false, MAP_ID = 0, mapPref = 0; try { mapPref = localStorage.getItem('tt_map') === '1' ? 1 : 0; } catch (_) {}
 const STRUCTS = {
   castle: { x: -71, z: -2, lvl: 4.6, r: 21, ramp: 8 },
   ship: { x: -32, z: 61, lvl: 4.7, r: 14, ramp: 8 },
   cottage: { x: 40, z: -8, lvl: 2.9, r: 6, ramp: 6 },
 };
 const STRUCT_LIST = Object.values(STRUCTS);
-function H(x, z) {
+function H(x, z) { return SKY_ON ? SKYW.H(x, z) : H_island(x, z); }
+function H_island(x, z) {
   let h = H0(x, z);
   for (const s of STRUCT_LIST) {
     const dx = x - s.x, dz = z - s.z, o = s.r + s.ramp;
@@ -603,7 +993,7 @@ const terrain = (() => {
   g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, map: groundTex }));
   m.receiveShadow = true;
-  scene.add(m);
+  scene.add(m); WORLD0.push(m);
   return m;
 })();
 // (the plane's uv spans 0..1; groundTex repeats 70x for fine detail)
@@ -614,7 +1004,7 @@ const water = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200, 1, 1), new THRE
   transparent: true, opacity: 0.86,
 }));
 water.rotation.x = -Math.PI / 2; water.position.y = WATER_Y; waterNormal.repeat.set(140, 140);
-scene.add(water);
+scene.add(water); WORLD0.push(water);
 
 // Sky dome
 const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 32, 16), new THREE.ShaderMaterial({
@@ -644,6 +1034,7 @@ safe('clouds', () => {
 
 /* ---------- Colliders ---------- */
 const boxes = [], cyls = [];
+let COLB = boxes, COLC = cyls;       // the colliders of the map that is on
 function addBoxCol(cx, cz, w, d, bot, top) { boxes.push({ x: cx, z: cz, hx: w / 2, hz: d / 2, bot, top }); }
 function addCylCol(cx, cz, r, bot, top) { cyls.push({ x: cx, z: cz, r, bot, top }); }
 
@@ -675,7 +1066,7 @@ const acornSpots = [];   // [x,y,z]
 
 // Central tower with a spiral stair
 const TG = H(TOWER.x, TOWER.z);
-const TOWER_TOP = TG + 17;
+const TOWER_TOP = TG + 17; let goalTop = TOWER_TOP;
 safe('tower', () => {
   const { x, z } = TOWER;
   block(x, TG - 3, z, 6, 17, 6);                                // core (top at TG+14)
@@ -911,7 +1302,7 @@ function cullGrass() {
   const cx = camera.position.x, cz = camera.position.z;
   for (const ch of grassChunks) {
     _sph.center.set(ch.x, ch.y, ch.z); _sph.radius = ch.r;
-    ch.mesh.visible = Math.hypot(ch.x - cx, ch.z - cz) - ch.r < 95 && _frus.intersectsSphere(_sph);
+    ch.mesh.visible = !SKY_ON && Math.hypot(ch.x - cx, ch.z - cz) - ch.r < 95 && _frus.intersectsSphere(_sph);
   }
 }
 // Floating pollen
@@ -1477,7 +1868,7 @@ function weaponAnim(s, dt, wd) {
   let rl = s.rl && s.rl.w === w ? s.rl : null, p = 0;
   if (rl) { rl.t += dt; p = rl.t / rl.d; if (p >= 1) { s.rl = rl = null; s.unl = false; p = 0; } }
   const empty = !rl && (mine ? wd.mag > 0 && me.mag[w] <= 0 && me.rld <= 0 : s.unl);
-  s.rlK = lerp(s.rlK, rl ? 1 : 0, dt * 9);
+  s.rlK = lerp(s.rlK, rl ? 1 : 0, dt * 9); s.rlP = rl ? p : 0;     // rlP: how far through the reload (the first-person hands follow it)
   const tl = RL_TILT[w];
   if (tl) { g.rotation.z = tl[0] * s.rlK; g.rotation.x -= tl[1] * s.rlK; } else g.rotation.z = 0;
   switch (w) {
@@ -1531,7 +1922,9 @@ const casingGeo = new THREE.BoxGeometry(0.012, 0.012, 0.034), shellGeo = new THR
 function ejectCasing(s, w) {
   const g = s.gunNode, e = EJECT[w];
   if (!g || s.weapon !== w || !e || casings.length >= 26) return;
-  const red = w === 9, o = g.localToWorld(V(e[0], e[1], e[2])), q = g.localToWorld(V(e[0] + e[3], e[1] + e[4], e[2] + e[5])).sub(o).normalize();
+  const red = w === 9, fpg = s === me.sq && fpMode;
+  const o = (fpg && fpGunPoint(w, e[0], e[1], e[2], V())) || g.localToWorld(V(e[0], e[1], e[2]));
+  const q = ((fpg && fpGunPoint(w, e[0] + e[3], e[1] + e[4], e[2] + e[5], V())) || g.localToWorld(V(e[0] + e[3], e[1] + e[4], e[2] + e[5]))).sub(o).normalize();
   let m = casingPool.pop(); if (!m) m = new THREE.Mesh(casingGeo, gunMats.brass);
   m.geometry = red ? shellGeo : casingGeo; m.material = red ? gunMats.red : gunMats.brass;
   m.scale.setScalar(s.def.gs * (w === 10 ? 1.6 : 0.9)); m.position.copy(o); m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); m.visible = true;
@@ -1743,8 +2136,8 @@ function clearProjectiles() { projs.forEach(p => scene.remove(p.mesh)); projs.le
 function solidAt(v) {
   if (v.y < H(v.x, v.z)) return true;
   if (v.y < WATER_Y - 0.3) return true;
-  for (const b of boxes) if (Math.abs(v.x - b.x) <= b.hx && Math.abs(v.z - b.z) <= b.hz && v.y <= b.top && v.y >= b.bot) return true;
-  for (const c of cyls) if (v.y <= c.top && v.y >= c.bot && (v.x - c.x) ** 2 + (v.z - c.z) ** 2 <= c.r * c.r) return true;
+  for (const b of COLB) if (Math.abs(v.x - b.x) <= b.hx && Math.abs(v.z - b.z) <= b.hz && v.y <= b.top && v.y >= b.bot) return true;
+  for (const c of COLC) if (v.y <= c.top && v.y >= c.bot && (v.x - c.x) ** 2 + (v.z - c.z) ** 2 <= c.r * c.r) return true;
   return false;
 }
 function capsuleHit(pt, base, d) { const dx = pt.x - base.x, dz = pt.z - base.z; return dx * dx + dz * dz < d.hr * d.hr && pt.y > base.y - 0.05 && pt.y < base.y + d.meta.hit; }
@@ -1833,11 +2226,11 @@ function inFlame(mz, yaw, c, hr) {
   for (let k = 1; k <= 3; k++) { tmpV.set(mz.x + dx * k / 4, mz.y + dy * k / 4, mz.z + dz * k / 4); if (solidAt(tmpV)) return false; }   // walls stop flames
   return true;
 }
-function flameFx(mz, yaw) {
-  const sx = Math.sin(yaw), sz = Math.cos(yaw), n = perf.scale < 0.8 ? 1 : 2;
+function flameFx(mz, yaw, dir) {         // dir: in first person, the way you are looking (up and down included)
+  const hl = dir ? Math.hypot(dir.x, dir.z) || 1 : 1, sx = dir ? dir.x / hl : Math.sin(yaw), sz = dir ? dir.z / hl : Math.cos(yaw), sy = dir ? dir.y : 0, n = perf.scale < 0.8 ? 1 : 2;
   for (let k = 0; k < n; k++) {
     const d = 0.4 + Math.random() * FLAME_RANGE * 0.85, j = (Math.random() - 0.5) * (0.2 + d * 0.16), u = Math.random();
-    tmpV.set(mz.x + sx * d + sz * j, mz.y + 0.05 + d * 0.05 + Math.random() * 0.2, mz.z + sz * d - sx * j);
+    tmpV.set(mz.x + sx * hl * d + sz * j, mz.y + sy * d + 0.05 + d * (dir ? 0.03 : 0.05) + Math.random() * 0.2, mz.z + sz * hl * d - sx * j);
     fx(tmpV, u < 0.3 ? 0xffe082 : u < 0.7 ? 0xff9800 : 0xff5722, 0.1 + d * 0.012, 0.35 + d * 0.07, 0.25 + Math.random() * 0.15, 0.8, 0.9);
   }
 }
@@ -1874,7 +2267,7 @@ function dotDamage(amount, by) {
 /* ---------- Weapon pickups (spread across the island, respawn after a while) ---------- */
 const PICK_RESPAWN = 20;
 const PICK_FIXED = [[-9, 73, 0], [9, 73, 4], [-7, 61, 3], [7, 61, 1]];     // close to the start: pistol, katana, knife, uzi
-const pickups = [];
+const pickups = []; let mkPickupFn = null, mkPowerupFn = null;
 safe('pickups', () => {
   const spots = PICK_FIXED.map(([x, z, t]) => [x, z, t, null]);
   spots.push([TOWER.x + 2.4, TOWER.z, 2, TOWER_TOP + 0.9]);               // a rocket launcher up on the tower
@@ -1885,13 +2278,15 @@ safe('pickups', () => {
     if (spots.some(s => Math.hypot(s[0] - x, s[1] - z) < 20)) continue;
     spots.push([x, z, -1, null]);
   }
-  spots.forEach(([x, z, forced, yy], i) => {
+  const mkPickup = ([x, z, forced, yy]) => {
     const grp = new THREE.Group();
     const glow = new THREE.Sprite(glowMat); glow.scale.set(2.8, 2.8, 1); grp.add(glow);
     const y = yy !== null ? yy : Math.max(H(x, z), 0.5) + 0.95;
     grp.position.set(x, y, z); grp.visible = false; scene.add(grp);
     pickups.push({ x, y, z, forced, gen: 0, ready: true, timer: 0, type: 0, grp, guns: new Array(NW).fill(null), cur: null });
-  });
+  };
+  mkPickupFn = mkPickup;
+  spots.forEach(mkPickup);
   resetPickups();
 });
 function pickType(p, i) {
@@ -1990,7 +2385,7 @@ safe('powerups', () => {
     }
     if (found) spots.push(found);
   });
-  spots.forEach(([x, z, kind, yy], i) => {
+  const mkPowerup = ([x, z, kind, yy]) => {
     const d = PU[kind], base = yy !== null ? yy - 0.9 : Math.max(H(x, z), 0.5), y = base + 1.05;
     const grp = new THREE.Group(), item = makePuItem(kind); item.scale.setScalar(1.5); grp.add(item);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: d.color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); glow.scale.set(3.2, 3.2, 1); grp.add(glow);
@@ -2002,8 +2397,99 @@ safe('powerups', () => {
     const beam = new THREE.Mesh(puGeo.beam || (puGeo.beam = new THREE.CylinderGeometry(0.42, 0.42, 9, 12, 1, true)), new THREE.MeshBasicMaterial({ color: d.color, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
     beam.position.y = 4.5; bg.add(beam); scene.add(bg);
     powerups.push({ x, y, z, kind, gen: 0, ready: true, timer: 0, grp, item, base: bg, ring, beam });
-  });
+  };
+  mkPowerupFn = mkPowerup;
+  spots.forEach(mkPowerup);
 });
+
+/* ---------- Sky Islands: the second map ---------- */
+const MAPS = [{ pickups: null, powerups: null, acorns: null }, { pickups: null, powerups: null, acorns: null }];
+let skyGroup = null; const skyPads = [];
+function buildSkyWorld() {
+  const M = SKYW.buildMeshes(LOW);
+  skyGroup = new THREE.Group(); skyGroup.visible = false; scene.add(skyGroup);
+  const geo = a => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(a.pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(a.nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(a.col, 3)); g.computeBoundingSphere(); return g; };
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const st = new THREE.Mesh(geo(M.static), mat); st.castShadow = true; st.receiveShadow = true; st.frustumCulled = false; skyGroup.add(st);
+  const far = new THREE.Mesh(geo(M.far), mat); far.frustumCulled = false; skyGroup.add(far);
+  const cl = new THREE.Mesh(geo(M.clouds), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x4a5468 })); cl.frustumCulled = false; skyGroup.add(cl);
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000, 1, 1), new THREE.MeshBasicMaterial({ color: 0xd2def2, transparent: true, opacity: 0.78, depthWrite: false }));
+  sea.rotation.x = -Math.PI / 2; sea.position.y = SKYW.SEA_Y; sea.renderOrder = 2; skyGroup.add(sea);
+  M.pads.forEach(p => {                                   // bounce mushrooms (each squashes when used)
+    const grp = new THREE.Group(); grp.position.set(p.x, p.y, p.z);
+    const mesh = new THREE.Mesh(geo(p.geo), mat); mesh.castShadow = true; grp.add(mesh);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff7a5a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.55 })); glow.scale.set(3.6, 3.6, 1); glow.position.y = 1.5; grp.add(glow);
+    skyGroup.add(grp); skyPads.push({ grp, sq: 0 });
+  });
+  // acorns, weapon pickups and power-up pads of this map (the island map's are kept aside)
+  MAPS[0].pickups = pickups.slice(); MAPS[0].powerups = powerups.slice(); MAPS[0].acorns = acorns.slice();
+  const skyAc = SKYW.ACORNS.map(([x, y, z], i) => {
+    const a = makeAcorn(); a.scale.setScalar(1.5); a.position.set(x, y, z);
+    const glow = new THREE.Sprite(glowMat); glow.scale.set(1.8, 1.8, 1); a.add(glow);
+    a.userData = { baseY: y, phase: i * 0.7 }; a.visible = false; scene.add(a); return a;
+  });
+  MAPS[1].acorns = skyAc;
+  pickups.length = 0; powerups.length = 0; SKY_ON = true;
+  SKYW.PICK.forEach(sp => mkPickupFn(sp)); SKYW.POWER.forEach(sp => mkPowerupFn(sp));
+  MAPS[1].pickups = pickups.slice(); MAPS[1].powerups = powerups.slice();
+  SKY_ON = false; pickups.length = 0; powerups.length = 0; MAPS[0].pickups.forEach(p => pickups.push(p)); MAPS[0].powerups.forEach(p => powerups.push(p));
+  MAPS[1].pickups.forEach(p => { p.grp.visible = false; }); MAPS[1].powerups.forEach(p => { p.grp.visible = false; p.base.visible = false; });
+}
+safe('sky world', buildSkyWorld);
+const ATMO = [
+  { top: SKY_TOP, hor: SKY_HOR, fogNear: 45, fogFar: 175, hemiSky: 0xe4f2ff, hemiGround: 0x9b8a5a, hemiI: 0.72, sunCol: 0xfff0d2, sunI: 0.9, sun: [0.55, 0.75, 0.35] },
+  { top: 0x4d7dd0, hor: 0xf4cdb0, fogNear: 70, fogFar: 330, hemiSky: 0xfff0e2, hemiGround: 0xb59a90, hemiI: 0.8, sunCol: 0xffd9aa, sunI: 0.95, sun: [0.62, 0.44, 0.5] },
+];
+function atmosphere(on) {
+  const A = ATMO[on ? 1 : 0];
+  scene.background.copy(col3(A.hor)); scene.fog.color.copy(col3(A.hor)); scene.fog.near = A.fogNear; scene.fog.far = A.fogFar;
+  sky.material.uniforms.top.value.copy(col3(A.top)); sky.material.uniforms.hor.value.copy(col3(A.hor));
+  hemi.color.copy(col3(A.hemiSky)); hemi.groundColor.copy(col3(A.hemiGround)); hemi.intensity = A.hemiI; sun.color.copy(col3(A.sunCol)); sun.intensity = A.sunI;
+  SUN_DIR.set(A.sun[0], A.sun[1], A.sun[2]).normalize();
+}
+const MAP_INFO = [{ name: 'Island', icon: '🏝️' }, { name: 'Sky Islands', icon: '☁️' }];
+function setSpawn() {
+  if (SKY_ON) { const sp = SKYW.SPAWNS[armedMode() ? (role === 2 ? 1 : 0) : 0]; me.spawn.set(sp.x, SKYW.H(sp.x, sp.z), sp.z); }
+  else me.spawn.set(SPAWN.x + (armedMode() ? (role === 1 ? -1.5 : 1.5) : 0), H(SPAWN.x, SPAWN.z), SPAWN.z);
+}
+function setMap(id, noReset) {
+  id = id === 1 && skyGroup ? 1 : 0;
+  if (id === MAP_ID) return false;
+  MAP_ID = id; SKY_ON = id === 1;
+  WORLD0.forEach(o => { o.visible = !SKY_ON; });
+  skyGroup.visible = SKY_ON;
+  COLB = SKY_ON ? SKYW.boxes : boxes; COLC = SKY_ON ? SKYW.cyls : cyls;
+  pickups.forEach(p => { p.grp.visible = false; }); powerups.forEach(p => { p.grp.visible = false; p.base.visible = false; }); acorns.forEach(a => { a.visible = false; });
+  const M = MAPS[id];
+  pickups.length = 0; M.pickups.forEach(p => pickups.push(p)); powerups.length = 0; M.powerups.forEach(p => powerups.push(p)); acorns.length = 0; M.acorns.forEach(a => acorns.push(a));
+  WATER_Y = SKY_ON ? SKYW.KILL_Y : 0; WORLD_R = SKY_ON ? SKYW.WORLD_R : 118; MAPR = SKY_ON ? 99 : 112;
+  goalTop = SKY_ON ? SKYW.OAK.crownTop : TOWER_TOP;
+  goalAcorn.position.set(SKY_ON ? SKYW.GOAL.x : TOWER.x, goalTop + 2.4, SKY_ON ? SKYW.GOAL.z : TOWER.z); beam.position.set(goalAcorn.position.x, goalTop + 30, goalAcorn.position.z);
+  atmosphere(SKY_ON);
+  clearProjectiles(); me.padT = 0; bot.padT = 0;
+  setSpawn();
+  if (!noReset) { resetLevel(); if (bot.on) botSpawn(true); camera.position.set(me.pos.x, me.pos.y + 4, me.pos.z + 8); }
+  return true;
+}
+// bounce mushrooms: touching one throws you up and across, towards the spot it points at (me and the computer player both use them)
+function padCheck(o, dt) {
+  if (!SKY_ON) return;
+  if (o.padCd > 0) o.padCd -= dt;
+  const P = SKYW.PADS;
+  for (let i = 0; i < P.length; i++) {
+    const p = P[i], dx = o.pos.x - p.x, dz = o.pos.z - p.z, rr = p.r + 0.55;
+    if (dx * dx + dz * dz < rr * rr && o.pos.y < p.top + 0.3 && o.pos.y > p.base - 0.5 && !(o.padCd > 0)) {
+      const T = p.airT;           // aim from wherever the mushroom was touched, so you always come down on the target spot
+      o.vel.x = (p.tx - o.pos.x) / T; o.vel.z = (p.tz - o.pos.z) / T; o.vel.y = (p.ty - o.pos.y + 0.5 * SKYW.G * T * T) / T; o.grounded = false; o.coyote = 0; o.padT = p.airT; o.padCd = 0.5; o.jumpBuf = 0;
+      if (skyPads[i]) skyPads[i].sq = 1;
+      if (o === me) sfx('boing', 0.9); else if (bot.on) sfx('boing', volAt(o.pos) * 0.6);
+    }
+  }
+}
+function updateSky(dt, t) {
+  if (!SKY_ON) return;
+  skyPads.forEach(p => { p.sq = Math.max(0, p.sq - dt * 2.2); const k = p.sq * Math.cos((1 - p.sq) * 9); p.grp.scale.set(1 + 0.18 * k, 1 - 0.4 * k, 1 + 0.18 * k); });
+}
 function resetPowerups() { powerups.forEach(p => { p.gen = 0; p.ready = true; p.timer = 0; }); }
 function updatePowerups(dt, t) {
   const on = puActive();
@@ -2101,7 +2587,7 @@ let hostItems = null;                      // a co-op guest plays by the host's 
 const itemsOn = () => { const it = (mode === 'coop' && role === 2 && hostItems) ? hostItems : items; return gunGame ? it.gg : it.ko; };
 const puActive = () => armedMode() && itemsOn();
 let gunGame = false, ggAnn = 0, ggPref = false; try { ggPref = localStorage.getItem('tt_gun') === '1'; } catch (_) {}
-const PROTO = 21;                                                       // changes whenever two phones could no longer understand each other
+const PROTO = 22;                                                       // changes whenever two phones could no longer understand each other
 let botLevel = 'normal'; try { const l = localStorage.getItem('tt_bot'); if (BOT_LEVELS[l]) botLevel = l; } catch (_) {}
 const botL = () => BOT_LEVELS[botLevel];
 const BOT_PREF = [1.1, 11, 8, 16, 1.5, 1.9, 16, 13, 3.6, 10, 6, 26, 9, 12, 2.0, 14];                      // preferred distance by weapon (index = weapon + 1; 0 = fists)
@@ -2125,6 +2611,7 @@ function setFp(on) {
   updateFpUi();
 }
 function updateFpUi() {
+  document.body.classList.toggle('fp', !!fpMode); if (!fpMode) releaseLook();
   const b = $('fpBtn'); if (b) b.textContent = fpMode ? '👁️ 1st' : '🎥 3rd';
   const f = $('fpTog1'), t = $('fpTog3');
   if (f) f.classList.toggle('sel', fpMode);
@@ -2132,6 +2619,15 @@ function updateFpUi() {
 }
 let xhairOn = false;
 
+// ============ EASY TWEAKS: where each hand sits on the gun ============================================================================
+// [x, y, z] shifts, in the gun's own units (about metres; the gun is not scaled): x + = toward the shooter's LEFT, y + = up, z + = toward the MUZZLE.
+// The hand moves, the gun does not. leftHandOffset / rightHandOffset apply to every gun; the ...By tables nudge one weapon only,
+// by weapon number (0 pistol, 1 uzi, 2 rocket, 5 crossbow, 8 freeze ray, 9 shotgun, 10 sniper, 11 minigun, 12 plasma ...), e.g.
+//   leftHandOffsetBy = { 9: [0, -0.01, 0.02] }   // the shotgun's left hand 1 cm lower and 2 cm toward the muzzle
+const leftHandOffset = [0, 0, 0];
+const rightHandOffset = [0, 0, 0];
+const leftHandOffsetBy = {};
+const rightHandOffsetBy = {};
 // ---- first-person viewmodel (pure maths, no THREE) ---------------------------------------------------------------------------
 // Camera ("vm") space: +x right, +y up, -z forward. The game and the test renderer both use this one module, so what the tests
 // draw is exactly what the game draws.
@@ -2217,6 +2713,9 @@ const FPL = (() => {
   const UNDER = (c, hu, hv, o) => Object.assign({ h: Hd(c, [0, 0, 1], [1, 0, 0], hu, hv), f: [-1, 0.35, 0], b: [-0.35, -1, 0], y: 0.58, dev: [0.45, 0.1] }, o || {});
   const LSIDE = (c, hu, hv, o) => Object.assign({ h: Hd(c, [0, 0, 1], [1, 0, 0], hu, hv), f: [-0.4, 0.92, 0], b: [0.92, 0.4, 0], y: 0.56, dev: [-0.35, 0.1] }, o || {});
   const SIDE = (c, hu, hv, o) => Object.assign({ h: Hd(c, [0, 0, 1], [1, 0, 0], hu, hv), f: [0.34, 1, 0.35], b: [1, -0.25, -0.25], y: 0.55 }, o || {});
+  // the support hand of a rifle: palm UNDER the fore-end, fingers wrapping up round its underside and right-hand side, thumb along the left side
+  // (c: centre of the fore-end's cross-section, hu / hv: half its width / height). The top rail and the sights stay clear.
+  const CUP = (c, hu, hv, o) => Object.assign({ h: Hd(c, [0, 0, 1], [1, 0, 0], hu, hv, Math.min(hu, hv) * 0.5), f: [-1, 0.5, 0.1], b: [-0.45, -1, 0], y: 0.52, dev: [0.5, 0.1], tk: 0.6 }, o || {});
   const GRIPS = [
     { R: RGRIP([0, -0.08, 0.008], 0.2, 0.027, 0.031), L: { h: pistolGrip([0.004, -0.1, 0.03], 0.2, 0.04, 0.042), f: [-0.36, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52 } },  // 0 pistol: both hands, the left wrapped round the right
     { R: RGRIP([0, -0.1, 0.06], 0.08, 0.023, 0.029), L: LSIDE([0, 0.005, 0.19], 0.031, 0.048) },                                       // 1 uzi
@@ -2224,14 +2723,14 @@ const FPL = (() => {
     { R: { h: Hd([0, 0, -0.012], [0, 0, 1], [1, 0, 0], 0.017, 0.021), f: [0, -1, 0], b: [-1, 0, 0], y: 0.55 } },                       // 3 knife
     { R: { h: Hd([0, 0, 0.042], [0, 0, 1], [1, 0, 0], 0.019, 0.022), f: [-0.1, -1, 0], b: [-1, 0.1, 0], y: 0.55 },
       L: { h: Hd([0, 0, -0.05], [0, 0, 1], [1, 0, 0], 0.019, 0.022), f: [0.2, -1, 0], b: [1, 0.2, 0], y: 0.55, auto: true } },                     // 4 katana: both hands on the handle
-    { R: RGRIP([0, -0.075, -0.09], 0.25, 0.02, 0.0225), L: LSIDE([0, 0.015, 0.13], 0.025, 0.043) },                                    // 5 crossbow
+    { R: RGRIP([0, -0.075, -0.09], 0.25, 0.02, 0.0225), L: CUP([0, 0, 0.13], 0.027, 0.03) },                                                 // 5 crossbow: the left hand under the stock
     { R: { h: Hd([0, 0, 0], [0, 1, 0], [1, 0, 0], 0.085, 0.085, 0.085), f: [-1, 0, 0.5], b: [-0.5, 0, -1], y: 0.5, wrap: 2.2 } },   // 6 grenade
     { R: RGRIP([0, -0.09, 0.02], 0.2, 0.0225, 0.025), L: SIDE([0, 0.02, 0.27], 0.04, 0.04, { h: Hd([0, 0.02, 0.27], [0, 0, 1], [1, 0, 0], 0.04, 0.04, 0.04) }) },   // 7 flamethrower: the left hand on the barrel
-    { R: RGRIP([0, -0.1, -0.02], 0.2, 0.025, 0.03), L: LSIDE([0.01, 0, 0.09], 0.048, 0.05) },                                         // 8 freeze ray
-    { R: RGRIP([0, -0.045, -0.085], 0.75, 0.021, 0.03, { y: 0.52 }), L: LSIDE([0, -0.003, 0.31], 0.026, 0.0545, { h: Hd([0, -0.003, 0.31], [0, 0, 1], [1, 0, 0], 0.026, 0.0545, 0.02) }) },   // 9 shotgun: the left hand works the pump
-    { R: RGRIP([0, -0.07, -0.05], 0.3, 0.02, 0.0225), L: LSIDE([0, -0.01, 0.3], 0.025, 0.045) },                                   // 10 sniper
+    { R: RGRIP([0, -0.1, -0.02], 0.2, 0.025, 0.03), L: CUP([0, 0, 0.12], 0.042, 0.052) },                                                // 8 freeze ray
+    { R: RGRIP([0, -0.045, -0.085], 0.75, 0.021, 0.03, { y: 0.52 }), L: CUP([0, -0.035, 0.36], 0.028, 0.026) },                                           // 9 shotgun: the left hand under the pump, working it
+    { R: RGRIP([0, -0.07, -0.05], 0.3, 0.02, 0.0225), L: CUP([0, -0.03, 0.34], 0.027, 0.027) },                                       // 10 sniper: under the fore-end
     { R: RGRIP([0, -0.08, -0.07], 0.25, 0.02, 0.0225), L: LSIDE([0, 0, 0.17], 0.052, 0.052, { h: Hd([0, 0, 0.17], [0, 0, 1], [1, 0, 0], 0.052, 0.052, 0.052) }) },   // 11 minigun: the left hand on the carry handle
-    { R: RGRIP([0, -0.09, -0.02], 0.2, 0.0225, 0.025), L: LSIDE([0, 0.01, 0.15], 0.048, 0.058) },                                   // 12 plasma rifle
+    { R: RGRIP([0, -0.09, -0.02], 0.2, 0.0225, 0.025), L: CUP([0, 0, 0.14], 0.05, 0.052) },                                          // 12 plasma rifle
     { R: { h: Hd([0, 0, 0.05], [0, 0, 1], [1, 0, 0], 0.017, 0.017), f: [-0.25, -1, 0], b: [-1, 0.25, 0], y: 0.55 },
       L: { h: Hd([0, 0, 0.21], [0, 0, 1], [1, 0, 0], 0.015, 0.015), f: [0.3, -1, 0], b: [1, 0.3, 0], y: 0.55, auto: true } },                       // 13 sledgehammer
     { R: { h: Hd([0, -0.02, 0.025], [0, 1, 0], [1, 0, 0], 0.07, 0.062, 0.03), f: [-1, 0, 0.6], b: [-0.6, 0, -1], y: 0.5, wrap: 2.6 } } // 14 dynamite
@@ -2247,6 +2746,98 @@ const FPL = (() => {
     heavy: [[0.45, -0.7, 0.55], [-0.45, -0.7, 0.55]], knife: [[0.4, -0.75, 0.5], [-0.35, -0.8, 0.5]], thrown: [[0.4, -0.75, 0.5], [-0.35, -0.8, 0.5]],
     sword: [[0.6, -0.6, 0.5], [-0.35, -0.8, 0.5]], hammer: [[0.55, -0.65, 0.5], [-0.35, -0.8, 0.5]], fists: [[0.35, -0.75, 0.55], [-0.35, -0.75, 0.55]]
   };
+
+  // ---- throwing (grenade, dynamite) ----
+  // The right arm winds back by the shoulder, whips forward, the hand opens and lets go (THROW.rel), follows through, and a fresh one comes back into the hand.
+  // The game spawns the grenade at the release moment, from where the hand is then.
+  const THROW = { rel: 0.47, d: 0.8 };             // when it is let go (fraction of the throw) and how long the whole throw takes (seconds)
+  const TK = [                                      // [fraction, hand position, fingers, back of the hand] (the rest pose is CLS.thrown.hand)
+    [0.00, [0.150, -0.115, -0.380], [-0.35, 0.55, -0.75], [0.60, 0.65, 0.25]],
+    [0.30, [0.245, -0.135, -0.300], [-0.45, 0.80, 0.20], [0.85, 0.30, 0.40]],        // wound up, back by the shoulder
+    [0.47, [0.120, 0.000, -0.560], [-0.20, 0.60, -0.80], [0.55, 0.75, 0.30]],        // let go: arm out in front, hand high
+    [0.72, [0.040, -0.095, -0.600], [0.00, -0.30, -0.95], [0.30, 0.90, -0.20]],      // follow-through
+    [1.00, [0.150, -0.115, -0.380], [-0.35, 0.55, -0.75], [0.60, 0.65, 0.25]]
+  ];
+  function throwPose(p) {
+    p = clamp(p, 0, 1);
+    let i = 0; while (i < TK.length - 2 && p > TK[i + 1][0]) i++;
+    const A = TK[i], B = TK[i + 1], u0 = clamp((p - A[0]) / (B[0] - A[0]), 0, 1), u = i === 1 ? u0 * u0 : u0 * u0 * (3 - 2 * u0);   // the swing speeds up toward the release
+    return {
+      p: mix3(A[1], B[1], u), f: mix3(A[2], B[2], u), b: mix3(A[3], B[3], u),
+      open: p >= THROW.rel,                                       // the hand has let go
+      grow: p < THROW.rel ? 1 : p < 0.8 ? 0 : sg_((p - 0.8) / 0.18),   // the grenade in hand: gone after the release, a fresh one grows back in
+      lift: Math.sin(PI * clamp(p / THROW.rel, 0, 1))              // the free hand rises a little as a counterweight
+    };
+  }
+  const sg_ = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+
+  // ---- reloading ----
+  // The left hand does the work. For a gun with a magazine (or an energy cell): the hand reaches in, grabs it, pulls it out, takes it away off the edge
+  // of the screen to fetch a fresh one, brings that back, pushes it home and goes back to the grip. The numbers are the game's own timings (MAG_T).
+  //   t = [starts to come out, is out, starts to go back in, is in] as fractions of the reload;  mv = which way it slides out (gun space);
+  //   at = where the hand holds it (gun space);  away = where the hand takes it to fetch the new one;  lead = how early the hand starts to reach for it
+  const ph = (p, a, b) => clamp((p - a) / (b - a), 0, 1), sm = x => x * x * (3 - 2 * x), sg = (p, a, b) => sm(ph(p, a, b));
+  const MAGS = {
+    0:  { tag: 'mag',  t: [0.12, 0.26, 0.46, 0.64], mv: [0.09, -0.11, -0.04], at: [0, -0.09, 0.008],  away: [0.4, -0.4, 0.1], lead: 0.1 },
+    1:  { tag: 'mag',  t: [0.10, 0.21, 0.46, 0.66], mv: [0.08, -0.13, -0.02], at: [0, -0.13, 0.06],   away: [0.5, -0.4, 0.1], lead: 0.1 },
+    10: { tag: 'mag',  t: [0.20, 0.33, 0.46, 0.62], mv: [0.08, -0.12, 0],  at: [0, -0.065, 0.07],  away: [0.45, -0.4, 0.1],  lead: 0.12 },
+    11: { tag: 'mag',  t: [0.10, 0.36, 0.50, 0.74], mv: [0.1, -0.16, 0],   at: [0, -0.115, -0.01], away: [0.5, -0.5, 0.1],   lead: 0.08 },
+    8:  { tag: 'cell', t: [0.08, 0.27, 0.48, 0.74], mv: [0.12, 0.05, 0],   at: [0.056, 0, 0.08],   away: [0.7, -0.25, 0],    lead: 0.08 },
+    12: { tag: 'cell', t: [0.08, 0.27, 0.48, 0.74], mv: [0.14, 0.12, 0],   at: [0, 0.068, -0.02],  away: [0.9, -0.15, 0],    lead: 0.08 }
+  };
+  // how the whole gun swings while it is reloaded: [roll (top tips to the right), nose up, turn (+ = toward the left), dx, dy, dz (camera space: + right, + up, + toward you)]
+  const RL_POSE = {
+    0: [0.4, 0.08, 0.1, -0.04, 0.12, 0.07], 1: [0.35, 0.06, 0.08, -0.05, 0.2, 0.0], 2: [0, 0.5, 0, 0, 0.03, 0.04], 5: [0.3, 0.1, 0.08, -0.03, 0.02, 0.04],
+    8: [0.4, 0.2, 0.1, -0.04, 0.03, 0.04], 9: [0.7, 0.12, 0.05, -0.03, 0.13, 0.0], 10: [0.45, 0.2, 0.1, -0.04, 0.12, 0.04], 11: [0.3, 0.15, 0.05, -0.05, 0.2, 0.0], 12: [0.3, 0.1, 0.0, -0.12, 0.06, -0.02]
+  };
+  // what the left hand holds during a reload (the magazine, the cell, a rocket, a shell, a crossbow bolt): handle in gun space, and the hand's frame on it
+  const MAGH = {
+    0:  CUP([0, -0.09, 0.008], 0.024, 0.029, { f: [-0.3, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52, h: Hd([0, -0.09, 0.008], [0, 1, 0], [1, 0, 0], 0.024, 0.029) }),
+    1:  CUP([0, -0.13, 0.06], 0.024, 0.029, { f: [-0.3, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52, h: Hd([0, -0.13, 0.06], [0, 1, 0], [1, 0, 0], 0.024, 0.029) }),
+    2:  CUP([0, 0, 0.3], 0.07, 0.07, { y: 0.5 }),
+    5:  LSIDE([0, 0.0, 0.3], 0.012, 0.012, { y: 0.55 }),
+    8:  CUP([0.056, 0, 0.08], 0.026, 0.026),
+    9:  CUP([0, -0.085, 0.05], 0.017, 0.017, { y: 0.55, tk: 0.9 }),
+    10: CUP([0, -0.065, 0.07], 0.022, 0.039, { f: [-0.3, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52, h: Hd([0, -0.065, 0.07], [0, 1, 0], [1, 0, 0], 0.022, 0.039) }),
+    11: CUP([0, -0.115, -0.01], 0.048, 0.054),
+    12: LSIDE([0, 0.068, -0.02], 0.026, 0.026)
+  };
+  const mix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  // the left hand's place in the reload at progress p (0..1): returns { c: where the hand's handle goes (gun space), grab: 0 = on its usual grip .. 1 = holding the magazine etc., parts: { tag: { pos, vis } } } or null
+  function reloadHand(w, p, gripC) {
+    if (!(p > 0)) return null;
+    const M = MAGS[w];
+    if (M) {
+      const [t0, t1, t2, t3] = M.t, m1 = t1 + (t2 - t1) * 0.3, m2 = t1 + (t2 - t1) * 0.7;
+      const pull = sg(p, t0, t1) - sg(p, t2, t3), aw = sg(p, t1, m1) - sg(p, m2, t2);
+      const off = [M.mv[0] * pull + M.away[0] * aw, M.mv[1] * pull + M.away[1] * aw, M.mv[2] * pull + M.away[2] * aw];
+      const grab = p < t0 ? sg(p, t0 - M.lead, t0) : p < t3 ? 1 : 1 - sg(p, t3, t3 + M.lead);
+      return { c: mix3(gripC, add(M.at, off), grab), grab, parts: { [M.tag]: { pos: off, vis: true } } };
+    }
+    if (w === 2) {                                          // rocket: the hand goes to the front for it and pushes it in from the muzzle
+      const rz = 0.5 * (1 - sg(p, 0.14, 0.62)), grab = p < 0.14 ? sg(p, 0.02, 0.12) : 1 - sg(p, 0.62, 0.8);
+      const at = [0, 0, 0.3 + (p < 0.14 ? 0.5 : rz)];
+      return { c: mix3(gripC, at, grab), grab, parts: { rkt: { pos: [0, 0, rz], vis: p >= 0.14 } } };
+    }
+    if (w === 5) {                                          // crossbow: pull the string back, fetch a bolt, lay it on the rail
+      const sPull = sg(p, 0.12, 0.45), s0 = [0, 0, 0.31 - 0.14 * sPull];
+      const bz = 0.06 * (1 - sg(p, 0.66, 0.8)), bolt = [0, 0.052 + bz, 0.05];
+      let c, grab;
+      if (p < 0.45) { grab = sg(p, 0.02, 0.12); c = mix3(gripC, s0, grab); }
+      else if (p < 0.55) { grab = 1; c = mix3(s0, [0.5, -0.45, 0.1], sg(p, 0.45, 0.55)); }
+      else { grab = 1 - sg(p, 0.8, 0.95); c = mix3([0.5, -0.45, 0.1], mix3(gripC, bolt, grab), sg(p, 0.55, 0.66)); if (p > 0.66) c = mix3(gripC, bolt, grab); }
+      return { c, grab, parts: { bolt: { pos: [0, bz, 0], vis: p >= 0.66 } } };
+    }
+    if (w === 9) {                                          // shotgun, one shell: the hand leaves the pump, fetches a shell, pushes it in underneath, comes back
+      const away = [0.14, -0.5, 0.1], port = [0, -0.085, 0.05], sd = 1 - sg(p, 0.14, 0.34), shellOff = [away[0] * sd, away[1] * sd, away[2] * sd];
+      let c, grab;
+      if (p < 0.14) { grab = sg(p, 0, 0.1); c = mix3(gripC, add(port, away), sg(p, 0, 0.14)); }
+      else if (p < 0.42) { grab = 1; c = add(port, shellOff); }
+      else { grab = 1 - sg(p, 0.42, 0.68); c = mix3(gripC, port, grab); }
+      return { c, grab, parts: { shellL: { pos: p < 0.14 ? away : shellOff, vis: p > 0.05 && p < 0.42 } } };
+    }
+    return null;
+  }
 
   // ---- each character's hands and forearms (sizes in metres of the viewmodel; colours 0..255) ----
   // W palm width, Lp palm length, Tp palm thickness, FL longest finger, fr finger radius, fingers [{x across the palm, l length, y knuckle, r radius}]
@@ -2522,7 +3113,7 @@ const FPL = (() => {
       let chain;
       if (pose.kind === 'grip') {
         const st = [base[1] - anchor[1], base[2] - anchor[2]];
-        const yz = walk(pr, st, [tl * 0.55, tl * 0.45], 1, Math.min(2.6, wrapMax));
+        const tk = pose.tk || 1, yz = walk(pr, st, [tl * 0.55 * tk, tl * 0.45 * tk], 1, Math.min(2.6, wrapMax));
         chain = yz.map((q, i) => [base[0] + i * W * 0.12, q[0] + anchor[1], q[1] + anchor[2]]);
       } else if (pose.kind === 'fist') {
         const idx = fingerTips[0].chain, j = idx[Math.min(2, idx.length - 1)];
@@ -2555,9 +3146,10 @@ const FPL = (() => {
     const [id, side, what] = key.split('|'), L = side === 'L';
     let pose;
     if (what === 'open' || what === 'fist') pose = { kind: what, dev: what === 'fist' ? [0.15, 0.05] : [0.1, 0.25] };
+    else if (what[0] === 'm') { const w = +what.slice(1), gr = MAGH[w], cls = CLS[CLS_OF[w]]; pose = { kind: 'grip', h: gr.h, M: gripFrame(gr), gs: cls.s, y: gr.y, wrap: gr.wrap, dev: gr.dev, tk: gr.tk }; }
     else {
       const w = +what.slice(1, -1), hand = what.slice(-1), gr = GRIPS[w][hand], cls = CLS[CLS_OF[w]];
-      pose = { kind: 'grip', h: gr.h, M: gripFrame(gr), gs: cls.s, y: gr.y, wrap: gr.wrap, x: gr.x, dev: gr.dev };
+      pose = { kind: 'grip', h: gr.h, M: gripFrame(gr), gs: cls.s, y: gr.y, wrap: gr.wrap, x: gr.x, dev: gr.dev, tk: gr.tk };
     }
     return handCache[key] = buildHand(id, pose, L);
   }
@@ -2633,7 +3225,9 @@ const FPL = (() => {
 
   // ---- lay out the whole viewmodel for one frame ----
   // o: { id, w (-1 = fists), aspect, fov (the game camera's), kick, chop, tilt:[roll, pitch], punch, lOff: [x,y,z] weapon-space shift of the left hand (pump),
-  //      rl: { f: 0..1, p: [x,y,z] weapon-space spot the left hand goes to while reloading } }
+  //      rl: { p: how far through the reload (0 = not reloading .. 1), k: 0..1 how much the gun has swung into its reload pose },
+  //      thr: how far through a grenade / dynamite throw (0 = not throwing .. 1), empty: nothing left to throw }
+  // returns also parts: { mag | cell | rkt | shellL | bolt: { pos: [x,y,z] shift in gun space, vis } } for the part the left hand is carrying
   function layout(o) {
     const id = o.id, K = kitOf(id), armed = o.w >= 0 && GRIPS[o.w];
     const tMain = Math.tan((o.fov || 58) * 0.5 * PI / 180), tv = vmTan(o.aspect), k = tMain / tv;
@@ -2648,14 +3242,16 @@ const FPL = (() => {
       return { key, m, R, org, wrist, T0, X: X0, zs, sc: s, side };
     };
     let hands = [null, null];
-    const place = (kick, chop, tilt, punch, lOff, rl) => {
+    const place = (kick, chop, tilt, punch, lOff, rl, thr, empty) => {
       const res = [null, null];
       if (armed) {
-        const cls = WPOSE[o.w] ? Object.assign({}, CLS[cl], WPOSE[o.w]) : CLS[cl], G = GRIPS[o.w], s = cls.s * sk;
+        const cls = WPOSE[o.w] ? Object.assign({}, CLS[cl], WPOSE[o.w]) : CLS[cl], G = GRIPS[o.w]; let s = cls.s * sk;
+        let thrP = null;                                   // grenade / dynamite: mid-throw, or nothing left to hold
+        if (cl === 'thrown') { if (thr > 0) thrP = throwPose(thr); if (empty && (!thrP || thrP.grow > 0)) thrP = Object.assign(thrP || throwPose(0), { open: true, grow: 0 }); if (thrP) { s *= Math.max(0.001, thrP.grow); res.hide = thrP.grow < 0.01; } }
         const melee = cl === 'sword' || cl === 'hammer' || cl === 'knife';
         let R, pos;
         if (cls.hand) {                                   // hand first, then the weapon in it
-          const H = cls.hand, sw = cls.swing || [1, 0, 0];
+          const H = thrP ? { p: thrP.p, f: thrP.f, b: thrP.b } : cls.hand, sw = cls.swing || [1, 0, 0];
           let Rh = frameFB(H.f, H.b);
           const ang = -chop * (cl === 'knife' ? 0.35 : 0.7) + kick * 0.2 - (tilt ? tilt[1] : 0);
           if (ang) Rh = mm(axisM(norm(sw), ang), Rh);
@@ -2664,8 +3260,9 @@ const FPL = (() => {
           R = mm(Rh, [Gf[0], Gf[3], Gf[6], Gf[1], Gf[4], Gf[7], Gf[2], Gf[5], Gf[8]]);
           pos = sub(add(org, mv(Rh, mul(g.anchor, sk))), mv(R, mul(G.R.h.c, s)));
         } else {
-          const pr = [cls.p[0] * ak, cls.p[1], cls.p[2]];
-          const rx = cls.rx + kick * 0.3 - chop * 0.5 - (tilt ? tilt[1] : 0), rz = cls.rz + (tilt ? tilt[0] : 0), ry = PI + cls.ry;
+          const rp = RL_POSE[o.w] && rl && rl.k > 0.001 ? RL_POSE[o.w].map(v => v * rl.k) : null;   // the reload pose of the whole gun
+          const pr = [cls.p[0] * ak + (rp ? rp[3] : 0), cls.p[1] + (rp ? rp[4] : 0), cls.p[2] + (rp ? rp[5] : 0)];
+          const rx = cls.rx + kick * 0.3 - chop * 0.5 - (tilt ? tilt[1] : 0) + (rp ? rp[1] : 0), rz = cls.rz + (tilt ? tilt[0] : 0) + (rp ? rp[0] : 0), ry = PI + cls.ry + (rp ? rp[2] : 0);
           R = rotM(rx, ry, rz);
           const gR = mv(R, mul(G.R.h.c, s));
           pos = [pr[0] - gR[0], pr[1] - gR[1], pr[2] - gR[2] + kick * 0.045 - chop * 0.05];
@@ -2675,18 +3272,23 @@ const FPL = (() => {
         resolveAuto(o.w);
         for (const [k, hn] of [[0, 'R'], [1, 'L']]) {
           const gr = G[hn]; if (!gr) continue;
-          const L = hn === 'L', key = `${id}|${hn}|w${o.w}${hn}`, g = handGeom(key);
-          let Rh = mm(R, gripFrame(gr)), c = gr.h.c;
+          const L = hn === 'L';
+          let key = thrP && thrP.open && !L ? `${id}|R|open` : `${id}|${hn}|w${o.w}${hn}`, Rh = mm(R, gripFrame(gr));
+          let c = add(gr.h.c, L ? add(leftHandOffset, leftHandOffsetBy[o.w] || [0, 0, 0]) : add(rightHandOffset, rightHandOffsetBy[o.w] || [0, 0, 0]));
           if (L && lOff) c = add(c, lOff);
-          if (L && rl && rl.f > 0) {                     // reloading: the hand goes to the magazine (palm up, under it) and comes back
-            const RU = mm(R, frameFB([0.25, 0.1, 1], [-0.25, -1, 0]));
-            Rh = slerpM(Rh, RU, sstep(0, 1, rl.f) * 0.85); c = mix(c, rl.p, sstep(0, 1, rl.f));
+          const rh = L && rl ? reloadHand(o.w, rl.p, c) : null;
+          if (rh) {                                    // reloading: the left hand takes hold of the magazine (cell, rocket, shell, bolt) and works it
+            res.parts = rh.parts;
+            const gm = MAGH[o.w];
+            if (gm) { Rh = slerpM(Rh, mm(R, gripFrame(gm)), rh.grab); if (rh.grab > 0.5) key = `${id}|L|m${o.w}`; }
+            c = rh.c;
           }
+          const g = handGeom(key);
           const org = sub(toCam(c), mv(Rh, mul(g.anchor, sk)));
           res[k] = [key, Rh, org];
         }
         if (!G.L && FREE[cl]) {
-          const fr = FREE[cl], Rh = frameFB(fr.f, fr.b), p = [fr.p[0] * ak, fr.p[1], fr.p[2]];
+          const fr = FREE[cl], Rh = frameFB(fr.f, fr.b), lf = thrP ? thrP.lift : 0, p = [fr.p[0] * ak + 0.06 * lf, fr.p[1] + 0.06 * lf, fr.p[2] - 0.05 * lf];
           res[1] = [`${id}|L|${fr.pose}`, Rh, p];
         }
       } else {
@@ -2697,7 +3299,9 @@ const FPL = (() => {
       }
       return res;
     };
-    const live = place(o.kick || 0, o.chop || 0, o.tilt, o.punch, o.lOff, o.rl), rest = place(0, 0, null, 0, null, null);
+    const live = place(o.kick || 0, o.chop || 0, o.tilt, o.punch, o.lOff, o.rl, o.thr || 0, !!o.empty), rest = place(0, 0, null, 0, null, null, 0, false);
+    if (live.parts) out.parts = live.parts;
+    if (live.hide) out.hideGun = true;
     if (live.gun) { const g = live.gun, R = g.R, sc = g.scale;
       out.gun = { pos: g.pos, quat: m2q(R), scale: sc, m: new Float32Array([R[0] * sc, R[3] * sc, R[6] * sc, 0, R[1] * sc, R[4] * sc, R[7] * sc, 0, R[2] * sc, R[5] * sc, R[8] * sc, 0, g.pos[0], g.pos[1], g.pos[2], 1]) }; }
     for (let k = 0; k < 2; k++) {
@@ -2712,7 +3316,7 @@ const FPL = (() => {
     return out;
   }
   const clearCache = () => { for (const k in handCache) delete handCache[k]; for (const k in autoDone) delete autoDone[k]; };
-  return { clearCache, layout, m2q, handGeom, armPose, armColors, armIndex, NR, NS, rotM, mv, CLS, CLS_OF, GRIPS, KITS, FREE, vmTan, gripFrame, profile };
+  return { clearCache, layout, m2q, handGeom, armPose, armColors, armIndex, NR, NS, rotM, mv, CLS, CLS_OF, GRIPS, KITS, FREE, vmTan, gripFrame, profile, MAGH, MAGS, RL_POSE, reloadHand, THROW, throwPose };
 })();
 
 // First-person viewmodel: your weapon (or your fists) in front of the camera.
@@ -2776,22 +3380,27 @@ function ensureFpArms() {
   buildFpArms();
 }
 // Lay out the whole viewmodel for this frame (FPL does the maths): the gun, both hands on their grips, the forearms.
-function updateFpView(kick, chop, tilt) {
+// The viewmodel gun is its own copy, so the moving parts (slide, magazine, pump, bolt, spinning barrels ...) are copied over each frame from the gun
+// that weaponAnim() animates on your character; the part the left hand is carrying during a reload is then placed by FPL, so it stays in the hand.
+function updateFpView(kick, chop) {
   const sq = me.sq, w = me.weapon, g = w >= 0 ? vmGunCache[w] : null;
   let lOff = null, rl = null;
   if (g && sq) {
-    const T = g.userData.T, it = GRIP_IDLE[w] && T && T[GRIP_IDLE[w]];
+    const T = g.userData.T, src = sq.gunNode && sq.gunNode.userData.T;
+    if (T && src) for (const k in T) { const a = src[k], b = T[k]; if (a && b) { b.position.copy(a.position); b.rotation.set(a.rotation.x, a.rotation.y, a.rotation.z); b.visible = a.visible; } }
+    const it = GRIP_IDLE[w] && T && T[GRIP_IDLE[w]];
     if (it) lOff = [it.position.x, it.position.y, it.position.z];          // the left hand rides the shotgun's pump
-    const rh = RELOAD_HAND[w], f = sq.rlK || 0;
-    if (rh && f > 0.001) {                                                  // reloading: the left hand fetches the magazine (and comes back with it)
-      const tg = rh[1] && T && T[rh[1]];
-      rl = { f, p: [rh[0][0] + (tg ? tg.position.x : 0), rh[0][1] + (tg ? tg.position.y : 0), rh[0][2] + (tg ? tg.position.z : 0)] };
-    }
+    if ((sq.rlK || 0) > 0.001) rl = { p: sq.rlP || 0, k: sq.rlK };           // reloading: how far through it, and how far the gun has swung into its reload pose
   }
   const id = CH[me.char].id;
-  const lay = FPL.layout({ id, w: g ? w : -1, aspect: camera.aspect, fov: camera.fov, kick, chop, tilt, punch: sq ? (sq.atk || 0) : 0, lOff, rl });
+  const lay = FPL.layout({ id, w: g ? w : -1, aspect: camera.aspect, fov: camera.fov, kick, chop, tilt: null, punch: sq ? (sq.atk || 0) : 0, lOff, rl,
+    thr: g && me.thr && me.thr.w === w ? Math.min(1, me.thr.t / me.thr.d) : 0, empty: !!g && wDef(w).kind === 'grenade' && me.ammo[w] <= 0 });     // thr: how far through a throw; empty: nothing left to throw
+  if (g && lay.parts) { const T = g.userData.T; for (const k in lay.parts) { const o = T && T[k], q = lay.parts[k]; if (o) { o.position.set(q.pos[0], q.pos[1], q.pos[2]); o.visible = q.vis; } } }
+  if (g && fpArms && fpArms.warm !== w + '|' + me.char && FPL.MAGH[w]) { fpArms.warm = w + '|' + me.char; fpHandGeo(`${id}|L|m${w}`); }   // build the reload hand now, not in the middle of the first reload
   vm.scale.set(lay.vmK, lay.vmK, 1);                                        // the weapon is seen through a narrower lens than the world
   if (lay.gun) { const G = lay.gun; vmGunHolder.position.set(G.pos[0], G.pos[1], G.pos[2]); vmGunHolder.quaternion.set(G.quat[0], G.quat[1], G.quat[2], G.quat[3]); vmGunHolder.scale.setScalar(G.scale); }
+  if (g) vmGunHolder.visible = !lay.hideGun;                                // a grenade that has just been let go is not in the hand any more
+  fpPose = lay.gun && g ? { w, q: lay.gun.quat, s: lay.gun.scale, px: lay.gun.pos[0], py: lay.gun.pos[1], pz: lay.gun.pos[2], k: lay.vmK } : null;   // where the gun is in front of the camera: shots and casings start from it
   if (!fpArms) return;
   for (let k = 0; k < 2; k++) {
     const p = fpArms.parts[k], h = lay.hands[k];
@@ -2841,16 +3450,23 @@ function setGunGame(on) {
   toast(on ? ggStartText() : 'Deathmatch — grab weapons! 🔫', 3200);
   updateHud(); updateWeaponHud();
 }
-function respawn(toSpawn) {
+function respawn(toSpawn, far) {
+  me.padT = 0;
+  let yaw = Math.PI;
+  if (toSpawn && SKY_ON && armedMode() && far) {        // coming back after a KO: start from the spawn that is furthest from the opponent
+    const opp = remote.active ? remote.pos : bot.on ? bot.pos : null, sp = SKYW.pickSpawn(opp ? opp.x : 0, opp ? opp.z : 0, !!opp);
+    me.spawn.set(sp.x, SKYW.H(sp.x, sp.z), sp.z); yaw = sp.yaw;
+  } else if (toSpawn && SKY_ON) { const sp = SKYW.SPAWNS[armedMode() ? (role === 2 ? 1 : 0) : 0]; yaw = sp.yaw; }
   me.pos.copy(toSpawn ? me.spawn : me.lastSafe); me.vel.set(0, 0, 0);
+  if (!toSpawn && SKY_ON) SKYW.safeNudge(me.pos);
   me.pos.y = Math.max(me.pos.y, groundAt(me.pos.x, me.pos.z, me.pos.y + 1));
   me.grounded = true;
-  me.sq.yaw = Math.PI; me.sq.root.rotation.y = Math.PI; cam.yaw = 0;
+  me.sq.yaw = toSpawn ? yaw : Math.PI; me.sq.root.rotation.y = me.sq.yaw; cam.yaw = toSpawn ? yaw - Math.PI : 0;
 }
 function groundAt(x, z, fromY) {
   let g = H(x, z);
-  for (const b of boxes) if (Math.abs(x - b.x) <= b.hx && Math.abs(z - b.z) <= b.hz && b.top <= fromY + 0.05 && b.top > g) g = b.top;
-  for (const c of cyls) if ((x - c.x) ** 2 + (z - c.z) ** 2 <= c.r * c.r && c.top <= fromY + 0.05 && c.top > g) g = c.top;
+  for (const b of COLB) if (Math.abs(x - b.x) <= b.hx && Math.abs(z - b.z) <= b.hz && b.top <= fromY + 0.05 && b.top > g) g = b.top;
+  for (const c of COLC) if ((x - c.x) ** 2 + (z - c.z) ** 2 <= c.r * c.r && c.top <= fromY + 0.05 && c.top > g) g = c.top;
   return g;
 }
 
@@ -2862,7 +3478,8 @@ function startGame(m, r) {
   assignChar(me, me.wantChar); assignChar(remote, remote.wantChar);
   remote.sq.root.visible = false; me.sq.root.visible = true;
   me.sq.tag.sprite.visible = remote.sq.tag.sprite.visible = armedMode();
-  me.spawn.set(SPAWN.x + (armedMode() ? (role === 1 ? -1.5 : 1.5) : 0), H(SPAWN.x, SPAWN.z), SPAWN.z);
+  if (m !== 'coop' || role === 1) setMap(mapPref, true);        // the host (or you, on your own) chooses the map; a co-op guest hears it in the first packet
+  setSpawn();
   clearProjectiles(); resetLevel();
   cam.yaw = 0; cam.pitch = 0.38;
   camera.position.set(me.pos.x, me.pos.y + 4, me.pos.z + 8);
@@ -2905,7 +3522,7 @@ function goToMenu() {
   resetInput(); clearProjectiles();
   assignChar(me, me.wantChar); if (remote.sq) remote.sq.root.visible = false;
   me.sq.root.visible = true; me.sq.tag.sprite.visible = false;
-  me.spawn.set(SPAWN.x, H(SPAWN.x, SPAWN.z), SPAWN.z); resetLevel();
+  setSpawn(); resetLevel();
   showOnly('menu');
 }
 let toastTimer = 0;
@@ -2981,7 +3598,7 @@ function beginReload(o, w) {                               // one reload: a whol
   const ev = { k: 'r', w, d: d.rl };
   if (o === me) { pushEvent(ev); reloadFx(me.sq, w, d.rl, 1); } else botPush(ev);
 }
-function cancelReload(o) { o.rld = 0; o.rldW = -1; if (o === me && me.sq) me.sq.rl = null; }
+function cancelReload(o) { o.rld = 0; o.rldW = -1; if (o === me) { me.thr = null; if (me.sq) me.sq.rl = null; } }
 function finishReload(o) {
   const w = o.rldW, d = WEAPONS[w]; o.rld = 0; o.rldW = -1;
   if (!d || o.weapon !== w) return;
@@ -3027,7 +3644,7 @@ function die(by) {
   pushEvent({ k: 'x', by }); toast(mode === 'bot' ? '💥 KO\'d by the computer!' : `💥 KO'd by ${by === 1 ? 'P1' : 'P2'}!`);
   net.sendNow(); updateHud();
 }
-function revive() { me.dead = false; me.hp = MAX_HP; me.invuln = 1.6; respawn(true); me.sq.root.visible = true; poofFx(me.pos); updateHud(); ggSync(true); }
+function revive() { me.dead = false; me.hp = MAX_HP; me.invuln = 1.6; respawn(true, true); me.sq.root.visible = true; poofFx(me.pos); updateHud(); ggSync(true); }
 function weaponList() { const l = [-1]; for (let i = 0; i < WEAPONS.length; i++) if (me.owned[i]) l.push(i); return l; }
 function switchWeapon(to) {
   if (gunGame && to === undefined) return;        // Gun Game hands you your weapon
@@ -3061,7 +3678,58 @@ function tryMelee(w, def) {
   if (def.lunge) { me.vel.x += Math.sin(me.sq.yaw) * def.lunge; me.vel.z += Math.cos(me.sq.yaw) * def.lunge; }
   pushEvent({ k: 'm', w, o: [r2(me.pos.x), r2(me.pos.y), r2(me.pos.z)], r: r2(me.sq.yaw) });
 }
-function tryFire() {
+/* ---------- First person: where a shot appears to come from ---------- */
+// In first person your character's own gun is out of sight behind the camera, so shots, flames and casings start from the gun you can SEE
+// (the viewmodel). FPL gives the gun's pose in camera space every frame (fpPose); these turn a point on that gun into a world position.
+let fpPose = null;
+const muzzleFp = V(), fpA = V(), fpB = V(), fpC = V();
+function fpGunPoint(w, x, y, z, out, Pin) {
+  const P = Pin || fpPose; if (!P || P.w !== w) return null;
+  const q = P.q, ax = x * P.s, ay = y * P.s, az = z * P.s;
+  const ux = q[1] * az - q[2] * ay, uy = q[2] * ax - q[0] * az, uz = q[0] * ay - q[1] * ax;
+  const cx = (P.px + ax + 2 * (q[3] * ux + (q[1] * uz - q[2] * uy))) * P.k, cy = (P.py + ay + 2 * (q[3] * uy + (q[2] * ux - q[0] * uz))) * P.k, cz = P.pz + az + 2 * (q[3] * uz + (q[0] * uy - q[1] * ux));
+  const eye = me.pos.y + Math.max(0.7, CH[me.char].meta.hit * 0.85), cp = Math.cos(fpPitch), sp = Math.sin(fpPitch), sy = Math.sin(cam.yaw), cw = Math.cos(cam.yaw);
+  // the camera's axes: right (cw, 0, -sy), forward (-sy*cp, sp, -cw*cp), up (sy*sp, cp, cw*sp); camera-space z points backwards
+  return out.set(me.pos.x + cw * cx + sy * sp * cy + sy * cp * cz, eye + cp * cy - sp * cz, me.pos.z - sy * cx + cw * sp * cy + cw * cp * cz);
+}
+// The spot under the crosshair: the first wall, ground or player along the view ray (or, with nothing in the way, a long way out).
+function fpAim(out, maxD) {
+  const eye = me.pos.y + Math.max(0.7, CH[me.char].meta.hit * 0.85), tg = remote.active && !remote.dead ? remote : null, ch = tg ? CH[tg.char] : null;
+  fpLook(fpA);
+  const D = Math.max(2, Math.min(80, maxD || 60));
+  for (let d = 0.6; d <= D; d += 0.4) {
+    fpB.set(me.pos.x + fpA.x * d, eye + fpA.y * d, me.pos.z + fpA.z * d);
+    if (solidAt(fpB) || (tg && capsuleHit(fpB, tg.pos, ch))) return out.copy(fpB);
+  }
+  return out.set(me.pos.x + fpA.x * D, eye + fpA.y * D, me.pos.z + fpA.z * D);
+}
+// A shot from `from` to the aim spot. If the spot is level with or behind the barrel (a wall right in your face), just fire along the view.
+function fpShotDir(from, pt, aiming, out) {
+  out.set(pt.x - from.x, pt.y - from.y, pt.z - from.z);
+  if (!aiming) { fpLook(fpA); if (out.x * fpA.x + out.y * fpA.y + out.z * fpA.z < 0.3) return out.copy(fpA); }
+  return out.normalize();
+}
+// Where the bullet itself first shows: at the barrel tip, nudged forward by half its own length so it comes out of the muzzle instead of straddling it.
+function fpOrigin(def, dirLoc) {
+  fpB.copy(muzzleFp);
+  if (solidAt(fpB)) { fpB.set(me.pos.x, me.pos.y + Math.max(0.7, CH[me.char].meta.hit * 0.85), me.pos.z); fpLook(dirLoc); }          // the gun is poking into a wall: shoot from the eye
+  const adv = def.kind === 'rocket' ? 0.3 : def.kind === 'bolt' ? 0.25 : def.kind === 'bullet' ? 0.03 * (def.len || 4) : def.kind === 'ice' ? 0.1 : 0;
+  return fpB.addScaledVector(dirLoc, adv);
+}
+// Grenade and dynamite in first person: the arm winds up and the hand lets go (FPL.THROW says when); only then does it leave, from where the hand is.
+function startThrow(w) { const T = FPL.THROW; me.thr = { w, t: 0, d: T.d, rel: T.rel * T.d, done: false }; me.cd = T.d + 0.12; }
+function fpThrowPoint(w, out) {                          // where the hand is at the moment it lets go
+  const lay = FPL.layout({ id: CH[me.char].id, w, aspect: camera.aspect, fov: camera.fov, kick: 0, chop: 0, tilt: null, punch: 0, thr: FPL.THROW.rel - 0.0005 }), c = FPL.GRIPS[w].R.h.c, G = lay.gun;
+  return fpGunPoint(w, c[0], c[1], c[2], out, { w, q: G.quat, s: G.scale, px: G.pos[0], py: G.pos[1], pz: G.pos[2], k: lay.vmK });
+}
+function tickThrow(dt) {
+  const T = me.thr; if (!T) return;
+  if (me.dead || roundOver || me.weapon !== T.w) { me.thr = null; return; }      // died, or put it away first: nothing was thrown, nothing used up
+  T.t += dt;
+  if (!T.done && T.t >= T.rel) { T.done = true; tryFire(true); }
+  if (T.t >= T.d && me.thr === T) me.thr = null;
+}
+function tryFire(release) {
   const w = me.weapon, def = wDef(w);
   if (def.melee) { tryMelee(w, def); return; }
   if (me.ammo[w] <= 0) {
@@ -3084,14 +3752,16 @@ function tryFire() {
   }
   me.sq.root.rotation.y = me.sq.yaw; me.sq.root.position.copy(me.pos); me.sq.root.updateMatrixWorld(true);
   me.sq.gunNode.localToWorld(muzzle.copy(GUN_TIP[w]));
+  const fpOn = fpMode && w >= 0 && !!fpGunPoint(w, GUN_TIP[w].x, GUN_TIP[w].y, GUN_TIP[w].z, muzzleFp);      // first person: the barrel tip you can see
   if (def.stream) {                                   // flamethrower: a steady jet, hits are worked out every frame
     if (!gunGame) me.ammo[w]--; me.cd = def.cd; me.flameT = 0.16; me.sq.recoil = 0.3;
     if (((me.flameTick = (me.flameTick | 0) + 1) & 1) === 0) sfx(def.sfx);
     updateWeaponHud(); return;
   }
   const aiming = me.aimHold > 0 && remote.active && !remote.dead;
-  let dir, speed = 0;
+  let dir, dirLoc = null, speed = 0;
   if (def.kind === 'grenade') {                       // a lobbed arc that lands near your friend when you are aiming at them
+    if (fpOn) { if (!release) { startThrow(w); return; } fpThrowPoint(w, muzzle); }       // first person: wind up first; it leaves your hand at the moment the hand lets go (tickThrow calls back with release)
     let hs = 12, vy = 6.5, dx = Math.sin(me.sq.yaw), dz = Math.cos(me.sq.yaw);
     if (aiming) {
       const ex = remote.pos.x - muzzle.x, ez = remote.pos.z - muzzle.z, ey = remote.pos.y + rh * 0.3 - muzzle.y, D = Math.max(0.5, Math.hypot(ex, ez));
@@ -3100,17 +3770,29 @@ function tryFire() {
     }
     dir = V(dx * hs, vy, dz * hs); speed = dir.length(); dir.multiplyScalar(1 / speed);
   } else {
-    if (aiming) dir = V(remote.pos.x, remote.pos.y + rh, remote.pos.z).sub(muzzle).normalize();
+    if (fpOn) {
+      // first person: your own screen sees the shot leave the barrel you can see and head for the spot under the crosshair;
+      // the other phone gets the same shot from your character's own gun, aimed at the very same spot
+      if (aiming) fpC.set(remote.pos.x, remote.pos.y + rh, remote.pos.z); else fpAim(fpC, def.reach || (def.speed || 40) * (def.life || 1));
+      dirLoc = fpShotDir(muzzleFp, fpC, aiming, V()); dir = fpShotDir(muzzle, fpC, aiming, V());
+    }
+    else if (aiming) dir = V(remote.pos.x, remote.pos.y + rh, remote.pos.z).sub(muzzle).normalize();
     else if (fpMode) dir = fpLook(V());   // first person: shoot where you are looking, up/down included
     else dir = V(Math.sin(me.sq.yaw), 0, Math.cos(me.sq.yaw));
-    if (def.spread && !def.pellets) { dir.x += (Math.random() - .5) * def.spread * 2; dir.y += (Math.random() - .5) * def.spread; dir.z += (Math.random() - .5) * def.spread * 2; dir.normalize(); }
+    if (def.spread && !def.pellets) {
+      const jx = (Math.random() - .5) * def.spread * 2, jy = (Math.random() - .5) * def.spread, jz = (Math.random() - .5) * def.spread * 2;
+      dir.x += jx; dir.y += jy; dir.z += jz; dir.normalize();
+      if (dirLoc) { dirLoc.x += jx; dirLoc.y += jy; dirLoc.z += jz; dirLoc.normalize(); }
+    }
   }
   let seed = 0;
-  if (def.pellets) { seed = 1 + ((Math.random() * 1e9) | 0); spawnPellets(w, muzzle, dir, role, seed); }
-  else spawnProjectile(w, muzzle, dir, role, speed);
+  const org = dirLoc ? fpOrigin(def, dirLoc) : muzzle, dl = dirLoc || dir;
+  if (def.pellets) { seed = 1 + ((Math.random() * 1e9) | 0); spawnPellets(w, org, dl, role, seed); }
+  else spawnProjectile(w, org, dl, role, speed);
   if (!gunGame) me.ammo[w]--;
   if (def.mag) { me.mag[w]--; if (me.mag[w] <= 0) me.rlWait = def.rw; }
-  me.cd = def.cd; me.sq.recoil = 1; sfx(def.sfx); shotFx(me.sq, w, muzzle);
+  if (!release) me.cd = def.cd;
+  me.sq.recoil = 1; sfx(def.sfx); shotFx(me.sq, w, fpOn && def.kind !== 'grenade' ? muzzleFp : muzzle);
   const ev = { k: 'f', w, o: [r2(muzzle.x), r2(muzzle.y), r2(muzzle.z)], d: [dir.x, dir.y, dir.z].map(v => Math.round(v * 1000) / 1000) };
   if (speed) ev.s = Math.round(speed * 10) / 10;
   if (seed) ev.q = seed;
@@ -3153,8 +3835,8 @@ function handleRemoteEvent(e, owner) {
 /* ---------- Input ---------- */
 const input = { keys: {}, stickId: null, stickX: 0, stickZ: 0, fire: false };
 function resetInput() {
-  input.keys = {}; releaseStick(); releaseCam(); if ($('fireBtn')._up) $('fireBtn')._up(); input.fire = false;
-  [stickGuard, camGuard, fireGuard].forEach(g => g.clear());
+  input.keys = {}; releaseStick(); releaseCam(); releaseLook(); if ($('fireBtn')._up) $('fireBtn')._up(); input.fire = false;
+  [stickGuard, camGuard, fireGuard, lookGuard].forEach(g => g.clear());
   ['jumpBtn', 'weapBtn', 'reloadBtn'].forEach(id => $(id).classList.remove('down'));
 }
 window.addEventListener('keydown', e => {
@@ -3193,13 +3875,16 @@ function makeTouchGuard(el, isActive, release) {
 }
 const stickGuard = makeTouchGuard(zone, () => input.stickId !== null, () => releaseStick());
 const camGuard = makeTouchGuard(camZone, () => cam.dragId !== null, () => releaseCam());
+const lookZone = $('lookZone'), lookBase = $('lookBase'), lookKnob = $('lookKnob'), look = { id: null, x: 0, y: 0, cx: 0, cy: 0 };
+const lookGuard = makeTouchGuard(lookZone, () => look.id !== null, () => releaseLook());
 const fireGuard = makeTouchGuard($('fireBtn'), () => input.fire, () => { if ($('fireBtn')._up) $('fireBtn')._up(); });
 function releaseStick() { input.stickId = null; input.stickX = input.stickZ = 0; knob.style.transform = ''; base.style.left = ''; base.style.top = ''; base.style.bottom = ''; stickGuard.ended(); }
 function releaseCam() { cam.dragId = null; camGuard.ended(); }
+function releaseLook() { look.id = null; look.x = look.y = 0; lookKnob.style.transform = ''; lookBase.style.left = lookBase.style.top = lookBase.style.bottom = lookBase.style.right = ''; lookGuard.ended(); }
 const onTouchEnd = e => {
   const none = e.touches.length === 0;
-  [stickGuard, camGuard, fireGuard].forEach(g => g.drop(e));
-  [stickGuard, camGuard, fireGuard].forEach(g => g.check(none));
+  [stickGuard, camGuard, fireGuard, lookGuard].forEach(g => g.drop(e));
+  [stickGuard, camGuard, fireGuard, lookGuard].forEach(g => g.check(none));
 };
 ['touchend', 'touchcancel'].forEach(t => window.addEventListener(t, onTouchEnd, { capture: true, passive: true }));
 document.addEventListener('visibilitychange', () => { if (document.hidden) resetInput(); });
@@ -3226,6 +3911,30 @@ function moveStick(e) {
   knob.style.transform = `translate(${dx}px, ${dy}px)`;
   let nx = dx / STICK_R, nz = dy / STICK_R; if (Math.hypot(nx, nz) < 0.15) nx = nz = 0;
   input.stickX = nx; input.stickZ = nz;
+}
+// First person: the right-hand stick turns the camera (push = turn, harder push = faster; the floating base follows where the thumb lands)
+lookZone.addEventListener('pointerdown', e => {
+  if (!fpMode) return;
+  if (look.id !== null) releaseLook();
+  e.preventDefault(); look.id = e.pointerId; lookGuard.began(e.pointerType);
+  try { lookZone.setPointerCapture(e.pointerId); } catch (_) {}
+  const r = lookBase.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  if (Math.hypot(e.clientX - cx, e.clientY - cy) > 90) {
+    const zr = lookZone.getBoundingClientRect();
+    lookBase.style.right = 'auto'; lookBase.style.left = (e.clientX - zr.left - r.width / 2) + 'px'; lookBase.style.top = (e.clientY - zr.top - r.height / 2) + 'px'; lookBase.style.bottom = 'auto';
+    look.cx = e.clientX; look.cy = e.clientY;
+  } else { look.cx = cx; look.cy = cy; }
+  moveLook(e);
+});
+window.addEventListener('pointermove', e => { if (e.pointerId === look.id) { e.preventDefault(); moveLook(e); } }, { passive: false });
+const endLook = e => { if (e.pointerId === look.id) releaseLook(); };
+window.addEventListener('pointerup', endLook, true); window.addEventListener('pointercancel', endLook, true);
+function moveLook(e) {
+  let dx = e.clientX - look.cx, dy = e.clientY - look.cy;
+  const d = Math.hypot(dx, dy); if (d > STICK_R) { dx *= STICK_R / d; dy *= STICK_R / d; }
+  lookKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+  let nx = dx / STICK_R, ny = dy / STICK_R; if (Math.hypot(nx, ny) < 0.12) nx = ny = 0;
+  look.x = nx; look.y = ny;
 }
 // Camera: drag anywhere else on the screen to look around
 camZone.addEventListener('pointerdown', e => { if (cam.dragId !== null) releaseCam(); e.preventDefault(); cam.dragId = e.pointerId; camGuard.began(e.pointerType); cam.lastX = e.clientX; cam.lastY = e.clientY; try { camZone.setPointerCapture(e.pointerId); } catch (_) {} });
@@ -3273,7 +3982,7 @@ function stepBody(o, dt) {
   o.grounded = false;
   if (o.pos.y <= g) { o.pos.y = g; o.vel.y = 0; o.grounded = true; }
   // stone blocks
-  for (const b of boxes) {
+  for (const b of COLB) {
     const dx = o.pos.x - b.x, dz = o.pos.z - b.z;
     if (Math.abs(dx) <= b.hx + RADIUS * 0.4 && Math.abs(dz) <= b.hz + RADIUS * 0.4 && o.vel.y <= 0 && prevY >= b.top - 0.06 && o.pos.y <= b.top) { o.pos.y = b.top; o.vel.y = 0; o.grounded = true; continue; }
     if (Math.abs(dx) < b.hx + RADIUS && Math.abs(dz) < b.hz + RADIUS && o.pos.y < b.top - 0.06 && o.pos.y + HEIGHT > b.bot) {
@@ -3284,7 +3993,7 @@ function stepBody(o, dt) {
     }
   }
   // columns, boulders, trunks
-  for (const c of cyls) {
+  for (const c of COLC) {
     const dx = o.pos.x - c.x, dz = o.pos.z - c.z, d = Math.hypot(dx, dz);
     if (d < c.r + RADIUS * 0.4 && o.vel.y <= 0 && prevY >= c.top - 0.06 && o.pos.y <= c.top) { o.pos.y = c.top; o.vel.y = 0; o.grounded = true; continue; }
     if (d < c.r + RADIUS && o.pos.y < c.top - 0.06 && o.pos.y + HEIGHT > c.bot) {
@@ -3294,7 +4003,7 @@ function stepBody(o, dt) {
     }
   }
   // world edge + sea
-  const rr = Math.hypot(o.pos.x, o.pos.z); if (rr > 118) { o.pos.x *= 118 / rr; o.pos.z *= 118 / rr; }
+  const rr = Math.hypot(o.pos.x, o.pos.z); if (rr > WORLD_R) { o.pos.x *= WORLD_R / rr; o.pos.z *= WORLD_R / rr; }
   if (o.grounded && H(o.pos.x, o.pos.z) > 0.4 || o.grounded && o.pos.y > 0.6) o.lastSafe.copy(o.pos);
   return { preVy, wasGrounded };
 }
@@ -3304,13 +4013,21 @@ function updateMe(dt) {
   const mv = readMove();
   const accel = me.grounded ? 14 : 5;
   const spd = SPEED * (me.freeze > 0 ? 0.38 : 1) * (me.spT > 0 ? PU_SPEED : 1);
-  me.vel.x = lerp(me.vel.x, mv.x * spd, dt * accel);
-  me.vel.z = lerp(me.vel.z, mv.z * spd, dt * accel);
+  if (me.padT > 0) { me.padT -= dt; me.vel.x += mv.x * 5.5 * dt; me.vel.z += mv.z * 5.5 * dt; if (me.grounded) me.padT = 0; }      // flying off a mushroom: keep the launch speed, steer a little
+  else { me.vel.x = lerp(me.vel.x, mv.x * spd, dt * accel); me.vel.z = lerp(me.vel.z, mv.z * spd, dt * accel); }
   me.coyote = me.grounded ? 0.1 : me.coyote - dt;
   me.jumpBuf -= dt;
   if (me.jumpBuf > 0 && me.coyote > 0) { me.vel.y = JUMP_V * (me.freeze > 0 ? 0.8 : 1); me.grounded = false; me.coyote = 0; me.jumpBuf = 0; sfx('jump'); }
   const sb = stepBody(me, dt), preVy = sb.preVy, wasGrounded = sb.wasGrounded;
-  if (me.pos.y < WATER_Y - 0.5) { respawn(false); sfx('splash'); toast('Splash! Squirrels don\'t swim 💦', 1500); }
+  padCheck(me, dt);
+  if (me.pos.y < WATER_Y - 0.5) {
+    respawn(false); sfx('splash');
+    if (SKY_ON) {
+      const hurt = armedMode() && me.hp > 1;
+      if (hurt) { me.hp = Math.max(1, me.hp - 25); me.sq.flash = 0.4; updateHud(); net.sendNow(); }
+      toast(hurt ? 'Whoosh! You fell through the clouds ☁️ −25 HP' : 'Whoosh! You fell through the clouds ☁️', 1800);
+    } else toast('Splash! Squirrels don\'t swim 💦', 1500);
+  }
 
   const hs = Math.hypot(me.vel.x, me.vel.z);
   me.run = Math.min(1, hs / SPEED);
@@ -3336,11 +4053,13 @@ function updateMe(dt) {
   });
   if (armedMode()) {
     me.cd -= dt; tickReload(me, dt); updateReloadHud();
+    if (me.thr) tickThrow(dt);
     if ((input.fire || input.keys.KeyF || input.keys.KeyJ) && me.cd <= 0) tryFire();
     if (me.flameT > 0) {
       me.flameT -= dt;
       if (me.weapon === 7 && me.sq.gunNode) {
-        me.sq.gunNode.localToWorld(muzzle.copy(GUN_TIP[7])); flameFx(muzzle, me.sq.yaw);
+        me.sq.gunNode.localToWorld(muzzle.copy(GUN_TIP[7]));
+        if (fpMode && fpGunPoint(7, GUN_TIP[7].x, GUN_TIP[7].y, GUN_TIP[7].z, muzzleFp)) flameFx(muzzleFp, me.sq.yaw, fpLook(fpA)); else flameFx(muzzle, me.sq.yaw);
         if (remote.active && !remote.dead && inFlame(muzzle, me.sq.yaw, tmpV2.set(remote.pos.x, remote.pos.y + CH[remote.char].meta.hit * 0.45, remote.pos.z), CH[remote.char].hr)) { remote.sq.flash = Math.max(remote.sq.flash, 0.5); if (mode === 'bot') botBurn(WEAPONS[7].dps * dt); }
       }
     }
@@ -3357,7 +4076,7 @@ function updateMe(dt) {
   }
   if (!me.won) {
     const gx = goalAcorn.position.x - me.pos.x, gz = goalAcorn.position.z - me.pos.z;
-    if (gx * gx + gz * gz < 7 && me.pos.y > TOWER_TOP - 0.3) {
+    if (gx * gx + gz * gz < 7 && me.pos.y > goalTop - 0.3) {
       if (mode === 'single') win();
       else if (armedMode() && me.healCd <= 0) { me.healCd = 25; me.hp = MAX_HP; updateHud(); toast('🏆 Golden acorn: full health!', 1800); sfx('pickup'); }
     }
@@ -3370,6 +4089,7 @@ function updateRemote(dt) {
   const owner = st.p === 2 ? 2 : 1, evs = Array.isArray(st.ev) ? st.ev : [];
   if (mode === 'coop' && role === 2 && st.p === 1) {
     setGunGame(!!st.gg);
+    if ('mp' in st && (st.mp | 0) !== MAP_ID && setMap(st.mp | 0)) toast(`🗺️ ${MAP_INFO[MAP_ID].icon} ${MAP_INFO[MAP_ID].name} — the host's map`, 2400);
     if ('ik' in st) {
       const n = { ko: !!st.ik, gg: !!st.ig }, was = hostItems ? itemsOn() : null;
       if (!hostItems || n.ko !== hostItems.ko || n.gg !== hostItems.gg) { hostItems = n; if (was !== null && itemsOn() !== was) toast(itemsOn() ? '🎁 Items are on' : 'Items are off', 1800); }
@@ -3382,8 +4102,8 @@ function updateRemote(dt) {
   remote.rd = st.rd | 0; remote.rq = st.rq | 0;
   if (remote.rd === round) {
     const d = st.de | 0; if (d > remote.deaths && d < 1000) { remote.deaths = d; updateHud(); ggSync(true); }
-    if (Array.isArray(st.pk)) st.pk.forEach((g, i) => { const p = pickups[i]; g = g | 0; if (p && g > p.gen && g < 1000) { p.gen = g; p.ready = false; p.timer = PICK_RESPAWN; p.grp.visible = false; } });
-    if (Array.isArray(st.pu)) st.pu.forEach((g, i) => { const p = powerups[i]; g = g | 0; if (p && g > p.gen && g < 1000) { p.gen = g; p.ready = false; p.timer = PU[p.kind].respawn; p.grp.visible = false; } });
+    if (Array.isArray(st.pk) && (st.mp | 0) === MAP_ID) st.pk.forEach((g, i) => { const p = pickups[i]; g = g | 0; if (p && g > p.gen && g < 1000) { p.gen = g; p.ready = false; p.timer = PICK_RESPAWN; p.grp.visible = false; } });
+    if (Array.isArray(st.pu) && (st.mp | 0) === MAP_ID) st.pu.forEach((g, i) => { const p = powerups[i]; g = g | 0; if (p && g > p.gen && g < 1000) { p.gen = g; p.ready = false; p.timer = PU[p.kind].respawn; p.grp.visible = false; } });
   }
   if (!remote.active) { if ((st.v | 0) !== PROTO) setTimeout(() => toast('⚠️ Your friend has a different version — update both phones', 4500), 2600); remote.active = true; remote.pos.set(st.x, st.y, st.z); remote.yaw = st.r; if (mode === 'coop') { toast(`${role === 1 ? 'Player 2' : 'Player 1'} joined! 🐿️`); setNetStatus('Co-op connected ✓'); } updateHud(); }
   const wasDead = remote.dead; remote.dead = !!st.dd;
@@ -3432,7 +4152,7 @@ function myState() {
   while (me.events.length && now - me.events[0]._t > 1500) me.events.shift();
   const ev = me.events.map(e => { const o = Object.assign({}, e); delete o._t; return o; });
   return { x: r2(me.pos.x), y: r2(me.pos.y), z: r2(me.pos.z), r: r2(me.sq.yaw), m: r2(me.run), a: me.grounded ? 0 : 1, c: me.collected.size, p: role, h: Math.max(0, Math.round(me.hp)), g: me.weapon, dd: me.dead ? 1 : 0, sid: me.sid, ev,
-    ch: me.wantChar, de: me.deaths, rd: round, rq: me.rq, pk: pickups.map(p => p.gen), pu: powerups.map(p => p.gen), sh: Math.round(me.sh), sp: me.spT > 0 ? 1 : 0, dq: me.dqT > 0 ? 1 : 0, fl: me.flameT > 0 ? 1 : 0, bn: me.burn > 0 ? 1 : 0, fz: me.freeze > 0 ? 1 : 0, v: PROTO, gg: gunGame ? 1 : 0, ik: items.ko ? 1 : 0, ig: items.gg ? 1 : 0 };
+    ch: me.wantChar, de: me.deaths, rd: round, rq: me.rq, mp: MAP_ID, pk: pickups.map(p => p.gen), pu: powerups.map(p => p.gen), sh: Math.round(me.sh), sp: me.spT > 0 ? 1 : 0, dq: me.dqT > 0 ? 1 : 0, fl: me.flameT > 0 ? 1 : 0, bn: me.burn > 0 ? 1 : 0, fz: me.freeze > 0 ? 1 : 0, v: PROTO, gg: gunGame ? 1 : 0, ik: items.ko ? 1 : 0, ig: items.gg ? 1 : 0 };
 }
 function setNetStatus(s) { $('netStatus').textContent = s; }
 
@@ -3569,6 +4289,12 @@ const paintItems = () => {
 };
 document.querySelectorAll('#itemRow .item').forEach(b => { b.onclick = () => { const k = ggPref ? 'gg' : 'ko'; items[k] = b.dataset.i === '1'; try { localStorage.setItem('tt_items_' + k, items[k] ? '1' : '0'); } catch (_) {} paintItems(); }; });
 document.querySelectorAll('#modeRow .mode').forEach(b => { b.onclick = () => { ggPref = b.dataset.g === '1'; try { localStorage.setItem('tt_gun', ggPref ? '1' : '0'); } catch (_) {} paintMode(); paintItems(); }; });
+const paintMap = () => {
+  document.querySelectorAll('#mapRow .map').forEach(b => b.classList.toggle('sel', (b.dataset.m === '1') === (mapPref === 1)));
+  $('mapNote').textContent = mapPref === 1 ? 'Floating islands, rope bridges, a giant oak to climb and bounce mushrooms. Fall in the clouds and you lose 25 HP in a fight. Co-op: the host picks the map.' : 'A big island with a castle, a ship and a tower. Co-op: the host picks the map.';
+};
+document.querySelectorAll('#mapRow .map').forEach(b => { b.onclick = () => { mapPref = b.dataset.m === '1' ? 1 : 0; try { localStorage.setItem('tt_map', mapPref ? '1' : '0'); } catch (_) {} setMap(mapPref); paintMap(); }; });
+paintMap();
 paintMode(); paintItems();
 const paintLevels = () => document.querySelectorAll('#lvlRow .lvl').forEach(b => b.classList.toggle('sel', b.dataset.l === botLevel));
 document.querySelectorAll('#lvlRow .lvl').forEach(b => { b.onclick = () => { botLevel = b.dataset.l; try { localStorage.setItem('tt_bot', botLevel); } catch (_) {} paintLevels(); }; });
@@ -3646,6 +4372,7 @@ function botReset() {
 }
 function botSpawn(first) {
   const b = bot; let x = SPAWN.x + 1.5, z = SPAWN.z;
+  if (SKY_ON) { x = SKYW.SPAWNS[1].x; z = SKYW.SPAWNS[1].z; }
   if (!first) {
     const c = pickups.filter(p => p.y < H(p.x, p.z) + 3).map(p => ({ p, d: Math.hypot(p.x - me.pos.x, p.z - me.pos.z) })).filter(o => o.d > 38).sort((u, v) => u.d - v.d);
     if (c.length) { const p = c[(Math.random() * Math.min(4, c.length)) | 0].p; x = p.x; z = p.z; }       // one of the nearest spots that is still a fair distance away
@@ -3710,7 +4437,7 @@ function botSees() {
 }
 function botProbe(dx, dz, dist) {
   const b = bot, x = b.pos.x + dx * dist, z = b.pos.z + dz * dist, top = groundAt(x, z, b.pos.y + 2.1);
-  return { rise: top - b.pos.y, water: top < WATER_Y + 0.15 || Math.hypot(x, z) > 112 };
+  return { rise: top - b.pos.y, water: top < WATER_Y + 0.15 || Math.hypot(x, z) > MAPR };
 }
 function botSteer(ux, uz, dt) {
   const b = bot;
@@ -3851,16 +4578,20 @@ function botUpdate(dt) {
   const dx = me.pos.x - b.pos.x, dz = me.pos.z - b.pos.z, d = Math.hypot(dx, dz) || 0.01, tx = dx / d, tz = dz / d;
   if (!roundOver) { b.thinkT -= dt; if (b.thinkT <= 0) { b.thinkT = L.think * (0.8 + Math.random() * 0.4); botThink(); } }
   // where to go
-  let ux = 0, uz = 0, sp = 0; const w = b.weapon, melee = w < 0 || WEAPONS[w].melee, pref = BOT_PREF[w + 1];
+  let ux = 0, uz = 0, sp = 0, rgx = 0, rgz = 0, rg = false; const w = b.weapon, melee = w < 0 || WEAPONS[w].melee, pref = BOT_PREF[w + 1];
   if (!roundOver) {
     if ((b.goal === 'pickup' && b.tp >= 0 && pickups[b.tp].ready) || (b.goal === 'power' && b.tp >= 0 && powerups[b.tp].ready)) {
-      const p = b.goal === 'power' ? powerups[b.tp] : pickups[b.tp], px = p.x - b.pos.x, pz = p.z - b.pos.z, pd = Math.hypot(px, pz) || 0.01; ux = px / pd; uz = pz / pd; sp = 1;
+      const p = b.goal === 'power' ? powerups[b.tp] : pickups[b.tp], px = p.x - b.pos.x, pz = p.z - b.pos.z, pd = Math.hypot(px, pz) || 0.01; ux = px / pd; uz = pz / pd; sp = 1; rgx = p.x; rgz = p.z; rg = true;
     } else if (live) {
-      if (d > pref * 1.3 + (melee ? 0 : 2)) { ux = tx; uz = tz; sp = 1; }
-      else if (melee) { if (d > pref * 0.6) { ux = tx; uz = tz; sp = d > pref ? 0.5 : 0.15; } }
+      if (d > pref * 1.3 + (melee ? 0 : 2)) { ux = tx; uz = tz; sp = 1; rgx = me.pos.x; rgz = me.pos.z; rg = true; }
+      else if (melee) { if (d > pref * 0.6) { ux = tx; uz = tz; sp = d > pref ? 0.5 : 0.15; rgx = me.pos.x; rgz = me.pos.z; rg = true; } }
       else if (d < pref * 0.6) { ux = -tx; uz = -tz; sp = 0.8; }
       else { b.strafeT -= dt; if (b.strafeT <= 0) { b.strafe = -b.strafe; b.strafeT = 0.7 + Math.random() * 1.2; } ux = -tz * b.strafe; uz = tx * b.strafe; sp = 0.75; }
     }
+  }
+  if (SKY_ON && rg && sp > 0) {                   // the goal is on another island: head for the next bridge instead of straight at it
+    const wp = SKYW.route(b.pos.x, b.pos.z, rgx, rgz);
+    if (wp) { const wx = wp[0] - b.pos.x, wz = wp[1] - b.pos.z, wl = Math.hypot(wx, wz) || 1; ux = wx / wl; uz = wz / wl; sp = Math.max(sp, 0.9); }
   }
   b.jumpT -= dt;
   if (b.jumpT <= 0) { b.jumpT = (1.2 + Math.random() * 2.6) / L.jump; if (live && d < 30 && b.grounded && sp > 0.4 && Math.random() < 0.6) b.jumpBuf = 0.15; }
@@ -3876,11 +4607,13 @@ function botUpdate(dt) {
   }
   // physics
   const spd = SPEED * L.speed * (b.freeze > 0 ? 0.38 : 1) * (b.spT > 0 ? PU_SPEED : 1) * sp, accel = b.grounded ? 14 : 5;
-  b.vel.x = lerp(b.vel.x, ux * spd, dt * accel); b.vel.z = lerp(b.vel.z, uz * spd, dt * accel);
+  if (b.padT > 0) { b.padT -= dt; b.vel.x += ux * 5.5 * dt; b.vel.z += uz * 5.5 * dt; if (b.grounded) b.padT = 0; }
+  else { b.vel.x = lerp(b.vel.x, ux * spd, dt * accel); b.vel.z = lerp(b.vel.z, uz * spd, dt * accel); }
   b.coyote = b.grounded ? 0.1 : b.coyote - dt; b.jumpBuf -= dt;
   if (b.jumpBuf > 0 && b.coyote > 0) { b.vel.y = JUMP_V * (b.freeze > 0 ? 0.8 : 1); b.grounded = false; b.coyote = 0; b.jumpBuf = 0; }
   stepBody(b, dt);
-  if (b.pos.y < WATER_Y - 0.5) { b.pos.copy(b.lastSafe); b.vel.set(0, 0, 0); }
+  padCheck(b, dt);
+  if (b.pos.y < WATER_Y - 0.5) { b.pos.copy(b.lastSafe); if (SKY_ON) SKYW.safeNudge(b.pos); b.vel.set(0, 0, 0); b.padT = 0; }
   const hs = Math.hypot(b.vel.x, b.vel.z); b.run = Math.min(1, hs / SPEED);
   // facing: toward me when fighting, otherwise the way it walks
   if (live && (b.goal === 'fight' || b.sees) && d < 60) b.yaw = lerpAngle(b.yaw, Math.atan2(dx, dz), dt * L.turn);
@@ -3926,7 +4659,8 @@ function frameBody() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   timeU.value = t;
   acorns.forEach(a => { if (a.visible) { a.rotation.y += dt * 2.2; a.position.y = a.userData.baseY + Math.sin(t * 2 + a.userData.phase) * 0.15; } });
-  goalAcorn.rotation.y += dt * 0.8; goalAcorn.position.y = TOWER_TOP + 2.4 + Math.sin(t * 1.5) * 0.25;
+  updateSky(dt, t);
+  goalAcorn.rotation.y += dt * 0.8; goalAcorn.position.y = goalTop + 2.4 + Math.sin(t * 1.5) * 0.25;
   beam.material.opacity = 0.14 + Math.sin(t * 2) * 0.04;
   waterNormal.offset.set(t * 0.004, t * 0.0025);
   updatePickups(dt, t); updatePowerups(dt, t);
@@ -3951,6 +4685,10 @@ function frameBody() {
   if (playing) {
     if (fpMode) {
       // first person: the camera is your eyes — set directly, no smoothing, or the view lags behind your finger
+      if (look.id !== null && (look.x || look.y)) {                       // the right-hand stick: turn / look up and down (a curve, so small pushes aim finely)
+        const cv = v => Math.sign(v) * Math.pow(Math.abs(v), 1.6);
+        cam.yaw -= cv(look.x) * 3.0 * dt; fpPitch = Math.min(FP_PITCH_MAX, Math.max(-FP_PITCH_MAX, fpPitch - cv(look.y) * 1.9 * dt)); cam.idle = 0;
+      }
       const hh = CH[me.char].meta.hit, eye = me.pos.y + Math.max(0.7, hh * 0.85);
       camera.position.set(me.pos.x, eye, me.pos.z);
       fpLook(tmpV); camLook.set(me.pos.x + tmpV.x * 10, eye + tmpV.y * 10, me.pos.z + tmpV.z * 10);
@@ -3962,11 +4700,10 @@ function frameBody() {
       vm.visible = !me.dead;
       const sq = me.sq, wd = wDef(me.weapon);
       const kick = sq.recoil, chop = (me.weapon >= 0 && wd.melee) ? sq.atk * (wd.swing || 1.5) : 0;
-      const tl = RL_TILT[me.weapon], rlK = tl ? sq.rlK : 0;
       vmGunHolder.visible = me.weapon >= 0;
       if (me.weapon >= 0 && vmFlash) { vmFlash.visible = sq.mfT > 0; if (vmFlash.visible) { const k = (wd.mf || 1) * (0.8 + Math.random() * 0.45); vmFlash.rotation.z = Math.random() * 6.28; vmFlash.scale.set(k, k, k * (0.8 + Math.random() * 0.5)); } }
       ensureFpArms();
-      updateFpView(kick, chop, tl ? [tl[0] * rlK, tl[1] * rlK] : null);
+      updateFpView(kick, chop);
     } else {
       const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), hh = CH[me.char].meta.hit, up = Math.max(0.7, hh * 0.75), dist = cam.dist * (camera.aspect < 1 ? 1.12 : 1) * (0.85 + hh * 0.15);
       camTarget.set(me.pos.x + Math.sin(cam.yaw) * cp * dist, me.pos.y + up + 0.2 + sp * dist, me.pos.z + Math.cos(cam.yaw) * cp * dist);
@@ -4001,7 +4738,8 @@ function frameBody() {
 try { const si = CHAR_ORDER.indexOf(localStorage.getItem('tt_char')); me.wantChar = si > 0 ? si : 0; } catch (_) {}
 assignChar(me, me.wantChar); assignChar(remote, 0); remote.sq.root.visible = false;
 refreshCharGrid();
-me.spawn.set(SPAWN.x, H(SPAWN.x, SPAWN.z), SPAWN.z); resetLevel();
+if (mapPref === 1) setMap(1, true);
+setSpawn(); resetLevel();
 frame();
 loadPack();
 })();
