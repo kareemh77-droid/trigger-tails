@@ -1,5 +1,5 @@
 // Trigger Tails offline helper. Bump VERSION when you upload a new index.html.
-const VERSION = 'trigger-tails-v37';
+const VERSION = 'trigger-tails-v40';
 const PAGE = ['./', './index.html'];
 const ASSETS = [
   './manifest.webmanifest', './models.pack', './sfx.pack', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',

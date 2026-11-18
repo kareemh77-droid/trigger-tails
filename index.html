@@ -77,6 +77,9 @@
   #scoreBox .vs { font-size: 10px; opacity: .55; }
   #ggBanner { position: absolute; top: calc(48px + var(--safe-t)); left: 50%; transform: translate(-50%, -8px); background: linear-gradient(90deg, rgba(224,125,32,.96), rgba(244,172,44,.96)); color: #fff; font-weight: 800; font-size: 15px; padding: 7px 16px; border-radius: 18px; box-shadow: 0 3px 10px rgba(0,0,0,.25); opacity: 0; transition: opacity .25s, transform .25s; white-space: nowrap; pointer-events: none; }
   #ggBanner.show { opacity: 1; transform: translate(-50%, 0); }
+  #kingBar { position: absolute; left: 50%; top: 64%; transform: translateX(-50%); width: 190px; padding: 5px 8px 8px; border-radius: 12px; background: rgba(0,0,0,.55); color: #fff; font-weight: 800; font-size: 13px; text-align: center; display: none; pointer-events: none; }
+  #kingBar.show { display: block; }
+  #kingBar i { display: block; height: 8px; margin-top: 4px; border-radius: 4px; background: #ffd34d; width: 0; }
   @media (max-width: 720px) { #scoreBox .nm { display: none; } #scoreBox .bar { width: 40px; } #fpBtn { padding: 0 7px; font-size: 11px; } }
   @media (max-width: 560px) {                     /* tall phones: the score drops under the objective, so nothing collides */
     #scoreBox { top: calc(46px + var(--safe-t)); left: auto; right: calc(10px + var(--safe-r)); transform: none; font-size: 11px; padding: 4px 8px; }
@@ -157,6 +160,7 @@
   </div>
   <div id="scoreBox" class="chip hidden"></div>
   <div id="ggBanner"></div>
+  <div id="kingBar"><span>🚩 Planting the flag…</span><i></i></div>
   <div id="hudTR">
     <div id="compass" class="chip"><svg id="compassArrow" viewBox="0 0 26 26"><circle cx="13" cy="13" r="12" fill="#6b3518"/><path d="M13 4 L19 18 L13 15 L7 18 Z" fill="#ffd34d"/></svg><span id="compassText">🌰</span></div>
     <div id="acornBox" class="chip"><span id="acornCount">🌰 0 / 0</span><div id="partnerAcorns" class="hidden"></div></div>
@@ -188,7 +192,7 @@
     <div id="mapRow"><button class="tog map" data-m="0">🏝️ Island</button><button class="tog map" data-m="1">☁️ Sky Islands</button></div>
     <div id="mapNote" class="sub"></div>
     <button class="btn b-single" id="singleBtn">Single Player</button>
-    <div id="modeRow"><button class="tog mode" data-g="0">⚔️ Deathmatch</button><button class="tog mode" data-g="1">🎯 Gun Game</button></div>
+    <div id="modeRow"><button class="tog mode" data-g="0">⚔️ Deathmatch</button><button class="tog mode" data-g="1">🎯 Gun Game</button><button class="tog mode" data-g="2">👑 King</button></div>
     <div id="modeNote" class="sub"></div>
     <div id="itemRow"><button class="tog item" data-i="1">🎁 Items on</button><button class="tog item" data-i="0">Items off</button></div>
     <div id="itemNote" class="sub"></div>
@@ -590,7 +594,7 @@ const jitter = (c, r, amt) => c.offsetHSL(0, 0, (r() - 0.5) * amt);
 
 /* ---------- Island terrain ---------- */
 const ISLAND_R = 105; let WATER_Y = 0, WORLD_R = 118, MAPR = 112;      // WATER_Y is 'how low is the void': the sea on the island map, the clouds on the sky map
-const SPAWN = { x: 0, z: 80 }, TOWER = { x: 0, z: -44 };
+const SPAWN = { x: 0, z: 80 }, TOWER = { x: 0, z: -66 };
 // Big landmarks (castle, ship, cottage): the ground is levelled under them.  lvl = ground height, r = flat radius.
 // ===== Sky Islands: a second map. Pure data + math (no THREE) so the game, the tests and the preview all share it. =====
 // Floating islands joined by rope bridges (all axis-aligned, so the game's box colliders fit them exactly), a giant oak in the middle
@@ -950,10 +954,28 @@ const SKYW = (() => {
 })();
 
 let SKY_ON = false, MAP_ID = 0, mapPref = 0; try { mapPref = localStorage.getItem('tt_map') === '1' ? 1 : 0; } catch (_) {}
+// v38: the castle (2x size, enterable) stands in the middle of the island with a moat round it.  Its footprint is a rectangle, so H_island() levels it itself
+// (the circle used for the other landmarks would swallow too much island); r and ramp are 0 here.
+const CAS = {
+  x: 0, z: 0, lvl: 4.0,                       // centre of the model's footprint, and the ground height all round it
+  hx: 32.2, hz: 29.5,                         // half sizes of the footprint (corner towers included)
+  moatIn: 3, moatW: 8, bank: 4, ramp: 8,      // the moat starts moatIn m from the footprint and is moatW wide; flat bank, then a ramp back to the island
+  depth: 3.3, surf: 1.1,                      // the moat bed is depth m below the ground, the water surface is surf m below it
+  gate: 3.0,                                  // both gates (east and west) are this far south of the centre line
+  keepX: 13.2, keepZ: -11.1, keepR: 7.12, summit: 35.96,     // the keep: centre (relative), inner radius, height of the summit platform
+  boxes: [], cyls: [], hole: null,            // the colliders of the castle itself (kept apart so that they are only looked at near it)
+};
+CAS.out = CAS.moatIn + CAS.moatW; CAS.zone = CAS.out + CAS.bank;
+CAS.x0 = CAS.x - CAS.hx - CAS.out - 3; CAS.x1 = CAS.x + CAS.hx + CAS.out + 3; CAS.z0 = CAS.z - CAS.hz - CAS.out - 3; CAS.z1 = CAS.z + CAS.hz + CAS.out + 3;
+function castleD(x, z) { return Math.hypot(Math.max(Math.abs(x - CAS.x) - CAS.hx, 0), Math.max(Math.abs(z - CAS.z) - CAS.hz, 0)); }   // distance from the footprint
+function casNear(x, z) { return !SKY_ON && x > CAS.x0 && x < CAS.x1 && z > CAS.z0 && z < CAS.z1; }
+function moatBad(x, z, top) { if (SKY_ON) return false; const d = castleD(x, z); return d > CAS.moatIn - 1 && d < CAS.out + 1 && top < CAS.lvl - CAS.surf + 0.2; }
+function inMoatWater(p) { if (SKY_ON) return false; const d = castleD(p.x, p.z); return d > CAS.moatIn - 1 && d < CAS.out + 1 && p.y < CAS.lvl - CAS.surf - 0.1; }
 const STRUCTS = {
-  castle: { x: -71, z: -2, lvl: 4.6, r: 21, ramp: 8 },
+  castle: { x: CAS.x, z: CAS.z, lvl: CAS.lvl, r: 0, ramp: 0 },
   ship: { x: -32, z: 61, lvl: 4.7, r: 14, ramp: 8 },
-  cottage: { x: 40, z: -8, lvl: 2.9, r: 6, ramp: 6 },
+  cottage: { x: -48, z: -60, lvl: 3.0, r: 6, ramp: 6 },       // v39: moved out of the west arena
+  arenaE: { x: 58, z: -37.5, lvl: 4.0, r: 14, ramp: 8 }, arenaW: { x: -66, z: 3, lvl: 4.0, r: 14, ramp: 8 },       // v40: where the two players start (north-east and west, equally far to walk)
 };
 const STRUCT_LIST = Object.values(STRUCTS);
 function H(x, z) { return SKY_ON ? SKYW.H(x, z) : H_island(x, z); }
@@ -962,6 +984,11 @@ function H_island(x, z) {
   for (const s of STRUCT_LIST) {
     const dx = x - s.x, dz = z - s.z, o = s.r + s.ramp;
     if (dx * dx + dz * dz < o * o) { const f = smooth(o, s.r, Math.hypot(dx, dz)); h = h * (1 - f) + s.lvl * f; }
+  }
+  const cd = castleD(x, z);                                   // the castle: level ground out to the moat's far bank, then a ramp; the moat is a trench in it
+  if (cd < CAS.zone + CAS.ramp) {
+    const f = smooth(CAS.zone + CAS.ramp, CAS.zone, cd); h = h * (1 - f) + CAS.lvl * f;
+    if (cd > CAS.moatIn - 1.6 && cd < CAS.out + 1.6) h -= CAS.depth * smooth(CAS.moatIn - 0.8, CAS.moatIn + 0.8, cd) * (1 - smooth(CAS.out - 0.8, CAS.out + 0.8, cd));
   }
   return h;
 }
@@ -1012,6 +1039,39 @@ const water = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200, 1, 1), new THRE
 }));
 water.rotation.x = -Math.PI / 2; water.position.y = WATER_Y; waterNormal.repeat.set(140, 140);
 scene.add(water); WORLD0.push(water);
+
+// ---- v38: the moat's water and the drawbridges ----
+const BRIDGES = []; let moatNormal = null;
+function applyBridge(b) {
+  const e = b.k * b.k * (3 - 2 * b.k); b.grp.rotation.z = (1 - e) * 1.37;
+  const on = b.k > 0.97; b.box.top = on ? CAS.lvl : -1e9; b.box.bot = on ? CAS.lvl - 0.7 : 1e9;       // the deck only holds a squirrel when it is down
+}
+function setBridge(i, down, instant) { const b = BRIDGES[i]; if (!b) return; b.target = down ? 1 : 0; if (instant) { b.k = b.target; applyBridge(b); } }
+function updateBridges(dt) { for (const b of BRIDGES) if (b.k !== b.target) { b.k += Math.sign(b.target - b.k) * Math.min(Math.abs(b.target - b.k), dt / 2.6); applyBridge(b); } }
+safe('structures moat', () => {
+  moatNormal = waterNormal.clone(); moatNormal.needsUpdate = true; moatNormal.repeat.set(12, 11);
+  const wx = CAS.hx + CAS.out + 3, wz = CAS.hz + CAS.out + 3;
+  const mw = new THREE.Mesh(new THREE.PlaneGeometry(wx * 2, wz * 2, 1, 1), new THREE.MeshPhongMaterial({
+    color: 0x3a8f9a, specular: 0xbfeaf2, shininess: 60, normalMap: moatNormal, normalScale: new THREE.Vector2(0.4, 0.4), transparent: true, opacity: 0.9 }));
+  mw.rotation.x = -Math.PI / 2; mw.position.set(CAS.x, CAS.lvl - CAS.surf, CAS.z); scene.add(mw);
+  const L = 10.8, W = 5.2, gz = CAS.z + CAS.gate;
+  for (const sg of [1, -1]) {
+    const hx0 = CAS.x + sg * (CAS.hx + 1.6), parts = [];
+    const box = (x0, y0, z0, x1, y1, z1, c) => {
+      const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0); g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+      parts.push(prep(g, (col, px, py, pz) => { col.setHex(c); col.offsetHSL(0, 0, ((px * 7.3 + pz * 3.1) % 1) * 0.03 - 0.015); }));
+    };
+    for (let i = 0; i < 12; i++) box(i * L / 12 + 0.02, -0.3, -W / 2, (i + 1) * L / 12 - 0.02, 0, W / 2, i % 2 ? 0x8a5a2e : 0x7d4f27);          // planks
+    box(0, -0.75, -W / 2, L, -0.3, -W / 2 + 0.45, 0x5a3a1c); box(0, -0.75, W / 2 - 0.45, L, -0.3, W / 2, 0x5a3a1c);                              // beams
+    for (let i = 0; i <= 4; i++) for (const zs of [-1, 1]) box(i * L / 4 - 0.15, 0, zs * (W / 2 - 0.2) - 0.15, i * L / 4 + 0.15, 1.0, zs * (W / 2 - 0.2) + 0.15, 0x5a3a1c);   // posts
+    for (const zs of [-1, 1]) box(0, 0.85, zs * (W / 2 - 0.2) - 0.07, L, 0.97, zs * (W / 2 - 0.2) + 0.07, 0xb99a62);                              // rope rails
+    const grp = new THREE.Group(); grp.position.set(hx0, CAS.lvl, gz); if (sg < 0) grp.rotation.y = Math.PI;
+    const m = new THREE.Mesh(merge(parts), new THREE.MeshLambertMaterial({ vertexColors: true })); m.castShadow = m.receiveShadow = true; grp.add(m); scene.add(grp);
+    const bx = { x: hx0 + sg * L / 2, z: gz, hx: L / 2, hz: W / 2, bot: CAS.lvl - 0.7, top: CAS.lvl, deck: BRIDGES.length };
+    CAS.boxes.push(bx);
+    BRIDGES.push({ side: sg, grp, box: bx, k: 1, target: 1 });
+  }
+});
 
 // Sky dome
 const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 32, 16), new THREE.ShaderMaterial({
@@ -1094,13 +1154,13 @@ safe('tower', () => {
 // Stone walkway from the meadow to the tower, with the golden ring arch
 safe('walkway', () => {
   const tiles = [];
-  for (let zz = 66; zz > TOWER.z + 9; zz -= 2.6) { const x = Math.sin(zz * 0.05) * 6; tiles.push([x, zz, Math.max(H(x, zz), 0.4) + 0.25]); }
+  for (let zz = 66; zz > 54; zz -= 2.6) { const x = Math.sin(zz * 0.05) * 6; tiles.push([x, zz, Math.max(H(x, zz), 0.4) + 0.25]); }
   for (let pass = 0; pass < 6; pass++) for (let i = 0; i < tiles.length; i++) {      // raise tiles so each step is walkable
     const nb = Math.max(i > 0 ? tiles[i - 1][2] : -9, i < tiles.length - 1 ? tiles[i + 1][2] : -9);
     tiles[i][2] = Math.max(tiles[i][2], nb - 0.5);
   }
   for (const [x, zz, top] of tiles) { const bot = Math.min(H(x, zz), top) - 1.2; block(x, bot, zz, 2.6, top - bot, 2.5); }
-  const ax = Math.sin(42 * 0.05) * 6 + 9, az = 42, ag = H(ax, az);
+  const ax = Math.sin(58 * 0.05) * 6 + 9, az = 58, ag = H(ax, az);
   const ring = new THREE.TorusGeometry(3.4, 0.6, 8, 8); ring.rotateZ(Math.PI / 8);
   ring.translate(ax, ag + 4.2, az);
   goldParts.push(prep(ring, (c, x, y, z, nx, ny) => c.set(0xb7a63c).offsetHSL(0, 0, ny * 0.06)));
@@ -1109,6 +1169,15 @@ safe('walkway', () => {
 
 // Scattered ruin sites
 const SITES = [[-42, 22], [46, 12], [-56, -28], [40, -62], [24, 52], [-26, -74], [66, -22], [-62, 48], [-18, 38], [58, 40]];
+for (let i = SITES.length - 1; i >= 0; i--) {
+  const p = SITES[i];
+  const nearArena = (x, z) => Math.min(Math.hypot(x - 58, z + 37.5), Math.hypot(x + 66, z - 3), Math.hypot(x - 62, z + 2) + 6, Math.hypot(x + 69, z + 31) + 6) < 28;
+  if (castleD(p[0], p[1]) < CAS.zone + 12 || nearArena(p[0], p[1])) {
+    let ok = false;
+    for (let k = 1.04; k < 2 && !ok; k += 0.04) { const x = p[0] * k, z = p[1] * k; if (castleD(x, z) >= CAS.zone + 12 && !nearArena(x, z) && H(x, z) > 1.5 && Math.hypot(x, z) < 82) { p[0] = Math.round(x); p[1] = Math.round(z); ok = true; } }
+    if (!ok) SITES.splice(i, 1);
+  }
+}
 SITES.forEach(([sx, sz], si) => safe('ruin site ' + si, () => {
   const r = mulberry(200 + si), g = H(sx, sz);
   if (g < 1) return;
@@ -1143,7 +1212,8 @@ safe('ruins mesh', () => {
 
 /* ---------- Vegetation & rocks (instanced) ---------- */
 function farFromStructures(x, z, m) {
-  if (Math.abs(x - Math.sin(z * 0.05) * 6) < 4 + m && z < 68 && z > TOWER.z) return false;
+  if (Math.abs(x - Math.sin(z * 0.05) * 6) < 4 + m && z < 68 && z > 54) return false;
+  if (castleD(x, z) < CAS.zone + 3 + m) return false;
   if (Math.hypot(x - TOWER.x, z - TOWER.z) < 13 + m) return false;
   if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 7 + m) return false;
   for (const s of STRUCT_LIST) if (Math.hypot(x - s.x, z - s.z) < s.r + 4 + m) return false;
@@ -1285,7 +1355,7 @@ safe('grass', () => {
   let k = 0, tries = 0;
   while (k < n && tries++ < n * 4) {
     const x = (r() - 0.5) * 205, z = (r() - 0.5) * 205, h = H(x, z);
-    if (h < 1.6 || slopeAt(x, z) > 0.6) continue;
+    if (h < 1.6 || slopeAt(x, z) > 0.6 || castleD(x, z) < CAS.out + 1) continue;
     const sc = 0.8 + r() * 1.2;
     q.setFromAxisAngle(V(0, 1, 0), r() * 6.28); m4.compose(V(x, h - 0.05, z), q, V(sc, sc * (0.8 + r() * 0.6), sc));
     c.copy(GOLD).lerp(GREEN, smooth(0.42, 0.6, fbm(x * 0.045 + 50, z * 0.045, 3))); jitter(c, r, 0.1);
@@ -2007,13 +2077,40 @@ function buildStructs() {
     const def = S[name], P = STRUCTS[name]; if (!P) return;
     const grp = new THREE.Group(); grp.position.set(P.x, P.lvl, P.z);
     const part = (geo, mat, shadow) => { const m = new THREE.Mesh(geo, mat); m.castShadow = shadow; m.receiveShadow = true; grp.add(m); };
-    const t = texFromBytes(new Uint8Array(pack.buf, pack.base + def.jpg[0], def.jpg[1]));
-    part(geoFromBin(pack.buf, pack.base + def.tex[0], def.tex[1]), new THREE.MeshLambertMaterial({ map: t.tex }), true);
-    if (def.flat) part(flatFromBin(pack.buf, pack.base + def.flat[0]), new THREE.MeshLambertMaterial({ vertexColors: true }), true);
+    const t = texFromBytes(new Uint8Array(pack.buf, pack.base + def.jpg[0], def.jpg[1])), isCas = name === 'castle', sd = isCas ? THREE.DoubleSide : THREE.FrontSide;   // the castle is hollow: draw the insides too
+    part(geoFromBin(pack.buf, pack.base + def.tex[0], def.tex[1]), new THREE.MeshLambertMaterial({ map: t.tex, side: sd }), true);
+    if (def.flat) part(flatFromBin(pack.buf, pack.base + def.flat[0]), new THREE.MeshLambertMaterial({ vertexColors: true, side: sd }), true);
     if (def.glow) part(flatFromBin(pack.buf, pack.base + def.glow[0]), new THREE.MeshBasicMaterial({ vertexColors: true }), false);
     scene.add(grp);
-    (def.boxes || []).forEach(([x0, z0, x1, z1, top]) => addBoxCol(P.x + (x0 + x1) / 2, P.z + (z0 + z1) / 2, x1 - x0, z1 - z0, P.lvl - 2, P.lvl + top));
+    (def.boxes || []).forEach(([x0, z0, x1, z1, top]) => {
+      const b = { x: P.x + (x0 + x1) / 2, z: P.z + (z0 + z1) / 2, hx: (x1 - x0) / 2, hz: (z1 - z0) / 2, bot: P.lvl - 2, top: P.lvl + top };
+      (isCas ? CAS.boxes : boxes).push(b);
+    });
+    if (isCas) buildKeep(P);
   });
+}
+// The keep's insides: a round pillar with a spiral of stepping stones round it up to the summit (every step is a column the squirrel can walk up),
+// and the flag's hole in the middle of the summit.
+function buildKeep(P) {
+  const kx = P.x + CAS.keepX, kz = P.z + CAS.keepZ, L = P.lvl, Ys = CAS.summit, PR = 3.2, Rs = 5.0, pr = 1.25, rise = 0.58, N = Math.round(Ys / rise);
+  const parts = [];
+  const cyl = (r, h, x, y, z, seg, c) => {
+    const g = new THREE.CylinderGeometry(r, r, h, seg); g.translate(x, y, z);
+    parts.push(prep(g, (col, px, py, pz) => { col.setHex(c); col.offsetHSL(0, 0, ((px * 12.9 + pz * 7.7) % 1) * 0.04 - 0.02); }));
+  };
+  cyl(PR, Ys, kx, L + Ys / 2, kz, 24, 0xb4b1ab);
+  CAS.cyls.push({ x: kx, z: kz, r: PR, bot: L - 2, top: L + Ys });
+  for (let i = 0; i < N; i++) {
+    const a = Math.PI / 2 - i * 0.26, x = kx + Math.cos(a) * Rs, z = kz + Math.sin(a) * Rs, top = L + rise * (i + 1);
+    cyl(pr, 0.5, x, top - 0.25, z, 10, i % 2 ? 0xc2bfb8 : 0xb9b6af);
+    CAS.cyls.push({ x, z, r: pr, bot: top - 0.5, top });
+  }
+  cyl(3.9, 0.5, kx, L + Ys - 0.28, kz, 28, 0xb4b1ab);
+  CAS.cyls.push({ x: kx, z: kz, r: 3.9, bot: L + Ys - 0.8, top: L + Ys - 0.03 });
+  cyl(0.95, 0.06, kx, L + Ys + 0.03, kz, 20, 0xd9b24c);          // gold plate
+  cyl(0.55, 0.08, kx, L + Ys + 0.05, kz, 20, 0x16110d);          // the hole for the flag
+  CAS.hole = { x: kx, y: L + Ys, z: kz };
+  const mesh = new THREE.Mesh(merge(parts), new THREE.MeshLambertMaterial({ vertexColors: true })); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
 }
 async function loadPack() {
   const info = $('loadInfo');
@@ -2145,6 +2242,10 @@ function solidAt(v) {
   if (v.y < WATER_Y - 0.3) return true;
   for (const b of COLB) if (Math.abs(v.x - b.x) <= b.hx && Math.abs(v.z - b.z) <= b.hz && v.y <= b.top && v.y >= b.bot) return true;
   for (const c of COLC) if (v.y <= c.top && v.y >= c.bot && (v.x - c.x) ** 2 + (v.z - c.z) ** 2 <= c.r * c.r) return true;
+  if (casNear(v.x, v.z)) {
+    for (const b of CAS.boxes) if (Math.abs(v.x - b.x) <= b.hx && Math.abs(v.z - b.z) <= b.hz && v.y <= b.top && v.y >= b.bot) return true;
+    for (const c of CAS.cyls) if (v.y <= c.top && v.y >= c.bot && (v.x - c.x) ** 2 + (v.z - c.z) ** 2 <= c.r * c.r) return true;
+  }
   return false;
 }
 function capsuleHit(pt, base, d) { const dx = pt.x - base.x, dz = pt.z - base.z; return dx * dx + dz * dz < d.hr * d.hr && pt.y > base.y - 0.05 && pt.y < base.y + d.meta.hit; }
@@ -2456,6 +2557,7 @@ function atmosphere(on) {
 }
 const MAP_INFO = [{ name: 'Island', icon: '🏝️' }, { name: 'Sky Islands', icon: '☁️' }];
 function setSpawn() {
+  if (KING.on && !SKY_ON) { const sp = kSpawn(me.kside); me.spawn.set(sp.x, H(sp.x, sp.z), sp.z); return; }
   if (SKY_ON) { const sp = SKYW.SPAWNS[armedMode() ? (role === 2 ? 1 : 0) : 0]; me.spawn.set(sp.x, SKYW.H(sp.x, sp.z), sp.z); }
   else me.spawn.set(SPAWN.x + (armedMode() ? (role === 1 ? -1.5 : 1.5) : 0), H(SPAWN.x, SPAWN.z), SPAWN.z);
 }
@@ -2594,7 +2696,7 @@ let hostItems = null;                      // a co-op guest plays by the host's 
 const itemsOn = () => { const it = (mode === 'coop' && role === 2 && hostItems) ? hostItems : items; return gunGame ? it.gg : it.ko; };
 const puActive = () => armedMode() && itemsOn();
 let gunGame = false, ggAnn = 0, ggPref = false; try { ggPref = localStorage.getItem('tt_gun') === '1'; } catch (_) {}
-const PROTO = 22;                                                       // changes whenever two phones could no longer understand each other
+const PROTO = 25;                                                       // changes whenever two phones could no longer understand each other
 let botLevel = 'normal'; try { const l = localStorage.getItem('tt_bot'); if (BOT_LEVELS[l]) botLevel = l; } catch (_) {}
 const botL = () => BOT_LEVELS[botLevel];
 const BOT_PREF = [1.1, 11, 8, 16, 1.5, 1.9, 16, 13, 3.6, 10, 6, 26, 9, 12, 2.0, 14];                      // preferred distance by weapon (index = weapon + 1; 0 = fists)
@@ -2603,6 +2705,585 @@ const bot = { on: false, ch: 0, pos: V(), vel: V(), grounded: true, lastSafe: V(
   weapon: -1, owned: [], ammo: [], mag: [], rld: 0, rldD: 0, rldW: -1, rlWait: 0, cd: 0, flameT: 0, freeze: 0, burn: 0, deaths: 0, events: [], evSeq: 0, sid: 1, rq: 0, jumpBuf: 0, coyote: 0, t: 0,
   thinkT: 0, goal: 'fight', tp: -1, strafe: 1, strafeT: 0, avoid: 1, avoidT: 0, stuckT: 0, stuckPos: V(), stuckN: 0, fireWait: 0, sees: false, jumpT: 2, black: {}, hurtT: 0 };
 Object.assign(me, { sh: 0, spT: 0, dqT: 0, shHit: 0 }); Object.assign(remote, { sh: 0, sp: 0, dq: 0, eff: MAX_HP, shHit: 0 }); Object.assign(bot, { sh: 0, spT: 0, dqT: 0 });
+/* ===================================================================================================
+   v40: KING OF THE CASTLE - three puzzles, a different one every round
+   Each player starts in an arena (west of the castle, or north-east of it) and solves that round's puzzle to lower the drawbridge of their own
+   gate: COLOUR CRYSTALS (remember an order), STEPPING STONES (remember a safe path over a pond) or TREBUCHET SHOT (angle, power, wind, a moving
+   target behind a shield).  Then: cross the moat, climb the keep's stair and plant the flag in the hole at the summit.  Best of 3 rounds.
+   Nothing here is sent as a 'score': every phone works the result out from each player's round wins (kw), so the two can never drift apart.
+   The two start areas are not mirror images (the keep stands east of the castle's centre, so the west gate is the longer way round inside):
+   the north-east start is simply farther from its gate, so that both walks - spawn, puzzle, bridge, courtyard, door - are the same length.
+   =================================================================================================== */
+const KING = { on: false, rnd: 1, phase: 'play', breakT: 0, seen: 0, meAt: 0, over: false, hostSide: 1, seed: 1, kind: 'crystals', order: ['crystals', 'stones', 'trebuchet'], len: 5, perm: [0, 1, 2, 3], seq: [],
+  force: null, path: [], wind: { af: 0, al: 0 }, tgt: { A: 6.5, Tp: 8, ph: 0 }, tb: { yaw: 0, ang: 56, pow: 62 },
+  plantT: 0, flagT: -1, t: 0, hinted: false, P: {}, arena: {}, grp: null, flag: null, built: false };
+let kingPref = false; try { kingPref = localStorage.getItem('tt_king') === '1'; } catch (_) {}
+Object.assign(me, { kw: 0, kb: 0, kq: 0, kside: 1, kdeck: -1 }); Object.assign(remote, { kw: 0, kb: 0, kq: 0 });
+Object.assign(bot, { kw: 0, kb: 0, kq: 0, kside: -1, kdeck: -1, kFight: 0, kPlantT: 0, kDone: false, kRoll: null });
+const K_COL = [0xe53935, 0x1e88e5, 0x43a047, 0xfdd835], K_NAME = ['red', 'blue', 'green', 'yellow'];
+const K_PLANT_T = 2.0, K_WINS = 2, KSTEPS = Math.round(CAS.summit / 0.58);
+const K_KINDS = ['crystals', 'stones', 'trebuchet'], K_KNAME = { crystals: 'Colour Crystals', stones: 'Stepping Stones', trebuchet: 'Trebuchet Shot' };
+const kGateZ = () => CAS.z + CAS.gate;
+// where each side starts: (sx, sz) is the spawn, d the direction of the walk to the gate; everything else is measured from it (f along d, l to the side)
+const K_LAYOUT = { '1': { sx: 58, sz: -49.5, dx: 0, dz: 1 }, '-1': { sx: -78, sz: 3, dx: 1, dz: 0 } };
+const kPos = (sg, f, l) => { const L = K_LAYOUT[sg]; return { x: L.sx + L.dx * f - L.dz * l, z: L.sz + L.dz * f + L.dx * l }; };
+const kLoc = (sg, p) => { const L = K_LAYOUT[sg], x = p.x - L.sx, z = p.z - L.sz; return { f: x * L.dx + z * L.dz, l: -x * L.dz + z * L.dx }; };
+const kBoxW = (sg, fa, fb, la, lb) => { const a = kPos(sg, fa, la), b = kPos(sg, fb, lb); return { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, hx: Math.abs(a.x - b.x) / 2, hz: Math.abs(a.z - b.z) / 2 }; };
+const kSpawn = sg => { const p = kPos(sg, 0, 0), L = K_LAYOUT[sg]; return { x: p.x, z: p.z, yaw: Math.atan2(L.dx, L.dz) }; };      // facing the way to the gate
+const kDeck = sg => (sg > 0 ? 0 : 1);                                  // BRIDGES[0] is the east gate's
+const kAltar = sg => kPos(sg, 12, 0);
+const kSlot = (sg, j) => kPos(sg, 12 + (j & 1 ? 6 : -6), (j & 2 ? 10 : -10));
+const kHole = () => CAS.hole || { x: CAS.x + CAS.keepX, y: CAS.lvl + CAS.summit, z: CAS.z + CAS.keepZ };
+const kDoor = () => ({ x: CAS.x + CAS.keepX, z: CAS.z + CAS.keepZ + CAS.keepR + 3.0 });          // just outside the keep's door (south side)
+const kStep = i => { const a = Math.PI / 2 - i * 0.26; return { x: CAS.x + CAS.keepX + Math.cos(a) * 5.0, z: CAS.z + CAS.keepZ + Math.sin(a) * 5.0, y: CAS.lvl + 0.58 * (i + 1) }; };
+const kStairIdx = p => { let best = 0, bd = 1e9; for (let i = 0; i < KSTEPS; i++) { const q = kStep(i), d = Math.hypot(p.x - q.x, p.z - q.z) + 1.5 * Math.abs(p.y - q.y); if (d < bd) { bd = d; best = i; } } return best; };
+const kStartText = () => `👑 Round ${KING.rnd} of 3 — ${K_KNAME[KING.kind]}: solve it, lower YOUR drawbridge, climb the keep and plant your flag!`;
+const KCOL = [];                                                          // the puzzle's own walls: {x,z,hx,hz,bot,top,k} - only solid while that puzzle is the round's
+function kRoute(sg) {                                                      // the walk from the spawn to the door, in metres (the same for both sides, see the header)
+  const ox = CAS.x + sg * (CAS.hx + CAS.out + 3.5), g = kGateZ(), a = kPos(sg, 0, 0), e = kPos(sg, 24, 0), d = kDoor();
+  const mouth = CAS.x + sg * 14, h = Math.hypot;
+  return h(e.x - a.x, e.z - a.z) + h(ox - e.x, g - e.z) + h(mouth - ox, 0) + h(d.x - mouth, d.z - g);
+}
+
+// ---------- the two start areas: for every puzzle its own props, only the round's are shown (and solid) ----------
+const kLam = (c, em) => new THREE.MeshLambertMaterial(em === undefined ? { color: c } : { color: c, emissive: em });
+function kGround(p) { return H(p.x, p.z); }
+function kBeam(G, a, b, r, mat) {                                      // a round beam from a to b (three {x,y,z})
+  const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z, len = Math.hypot(dx, dy, dz), m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 7), mat);
+  m.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx / len, dy / len, dz / len)); m.castShadow = true; G.add(m); return m;
+}
+function buildKingArena() {
+  if (KING.built) return; KING.built = true;
+  const g = new THREE.Group(); g.visible = false; scene.add(g); WORLD0.push(g); KING.grp = g;
+  for (const sg of [1, -1]) {
+    const A = { crystals: [], lamps: [] };
+    A.crG = new THREE.Group(); A.stG = new THREE.Group(); A.tbG = new THREE.Group(); g.add(A.crG); g.add(A.stG); g.add(A.tbG);
+    kBuildCrystals(sg, A); kBuildStones(sg, A); kBuildTreb(sg, A);
+    KING.arena[sg] = A;
+  }
+}
+function kBuildCrystals(sg, A) {
+  const g = A.crG, lam = kLam, a = kAltar(sg), gy = H(a.x, a.z);
+  const plate = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 0.14, 28), lam(0xd9b24c)); plate.position.set(a.x, gy + 0.07, a.z); plate.receiveShadow = true; g.add(plate);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 0.1, 28), lam(0x8b7a55)); ring.position.set(a.x, gy + 0.04, a.z); g.add(ring);
+  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.8, 1.2, 12), lam(0x9b978f)); plinth.position.set(a.x, gy + 0.7, a.z); plinth.castShadow = true; g.add(plinth);
+  for (let i = 0; i < 6; i++) {
+    const an = i / 6 * Math.PI * 2, mat = new THREE.MeshLambertMaterial({ color: 0x55504a, emissive: 0x000000 });
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.36, 8), mat); m.position.set(a.x + Math.cos(an) * 1.05, gy + 0.32, a.z + Math.sin(an) * 1.05); g.add(m);
+    A.lamps.push({ mesh: m, mat, key: '' });
+  }
+  const top = new THREE.Mesh(new THREE.OctahedronGeometry(0.4), new THREE.MeshLambertMaterial({ color: 0xffe9a0, emissive: 0x806020 })); top.position.set(a.x, gy + 1.65, a.z); g.add(top); A.top = top;
+  for (let j = 0; j < 4; j++) {
+    const c = kSlot(sg, j), cy = H(c.x, c.z);
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.15, 0.8, 12), lam(0xa6a29a)); ped.position.set(c.x, cy + 0.4, c.z); ped.castShadow = ped.receiveShadow = true; g.add(ped);
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xffffff }); mat.emissiveIntensity = 0.25;
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.75), mat); m.scale.set(1, 1.6, 1); m.position.set(c.x, cy + 2.0, c.z); g.add(m);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 10, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.set(c.x, cy + 6, c.z); beam.visible = false; g.add(beam);
+    A.crystals.push({ mesh: m, mat, beam, y0: cy + 2.0, bad: false });
+  }
+}
+function kcColours() {
+  for (const sg of [1, -1]) { const A = KING.arena[sg]; if (!A) continue; A.crystals.forEach((c, j) => { const h = K_COL[KING.perm[j]]; c.mat.color.setHex(h); c.mat.emissive.setHex(h); c.beam.material.color.setHex(h); c.bad = false; }); A.lamps.forEach(L => { L.key = ''; }); }
+}
+
+// ===================================================================================================
+//  1. COLOUR CRYSTALS: stand on the golden plate, watch the order the crystals light up, then touch them in that order
+// ===================================================================================================
+const kcNew = sg => ({ sg, kind: 'crystals', solved: false, prog: 0, heard: false, playing: false, playT: 0, step: -1, plateT: 0, fired: false, inside: [false, false, false, false], flash: [0, 0, 0, 0], bad: 0 });
+function kcStep(st, pos, dt, who) {
+  const K = KING, a = kAltar(st.sg);
+  for (let i = 0; i < 4; i++) if (st.flash[i] > 0) st.flash[i] = Math.max(0, st.flash[i] - dt);
+  if (st.bad > 0) st.bad = Math.max(0, st.bad - dt);
+  if (st.solved) return;
+  const onP = Math.hypot(pos.x - a.x, pos.z - a.z) < 1.7 && Math.abs(pos.y - H(a.x, a.z)) < 1.6;
+  if (onP) st.plateT += dt; else { st.plateT = 0; st.fired = false; }
+  if (!st.playing && !st.fired && st.plateT >= 0.7) {                       // standing on the golden plate shows the order (and starts you again from the first crystal)
+    st.fired = true; st.playing = true; st.playT = 0; st.step = -1; st.prog = 0; who.kq = 0;
+    if (who === me) toast('👀 Watch the crystals… remember the order!', 2400);
+  }
+  if (st.playing) {
+    st.playT += dt; const i = Math.floor(st.playT / 0.95);
+    if (i >= K.len) { if (st.playT >= K.len * 0.95 + 0.25) { st.playing = false; st.heard = true; st.step = -1; if (who === me) toast('Now touch the crystals in that order', 2400); } }
+    else if (i !== st.step) { st.step = i; st.flash[K.perm.indexOf(K.seq[i])] = 0.7; if (who === me) sfx('tick'); }
+    return;
+  }
+  for (let j = 0; j < 4; j++) {
+    const c = kSlot(st.sg, j), d = Math.hypot(pos.x - c.x, pos.z - c.z);
+    if (d < 1.7 && Math.abs(pos.y - H(c.x, c.z)) < 2.4) { if (!st.inside[j]) { st.inside[j] = true; kcTouch(st, j, who); if (st.solved) return; } }
+    else if (d > 2.6) st.inside[j] = false;
+  }
+}
+function kcTouch(st, j, who) {
+  const K = KING;
+  if (K.perm[j] === K.seq[st.prog]) {
+    st.prog++; st.flash[j] = 0.55; who.kq = st.prog; if (who === me) sfx('pickup', 0.8);
+    if (st.prog >= K.len) kSolved(st, who);
+  } else {
+    st.prog = 0; st.bad = 0.9; who.kq = 0; if (who === bot) { st.heard = false; bot.kRoll = null; }
+    if (who === me) { sfx('shieldhit'); toast('❌ Wrong crystal — back to the golden plate to see the order again', 2800); }
+  }
+}
+function kSolved(st, who) {                                                  // any puzzle: the solver's own drawbridge comes down
+  st.solved = true; who.kb = 1; who.kq = 99; setBridge(kDeck(st.sg), true);
+  if (who === me) { sfx('win'); toast('🌉 Right! Your drawbridge is coming down — to the keep!', 3000); }
+}
+
+// ===================================================================================================
+//  2. STEPPING STONES: stand on the golden plate to see which stones of the pond are safe, then cross the lane.  A wrong stone sinks (back to the
+//     plate, the path is shown again).  The lane is walled in, so there is no way round, and every cell counts: standing on a wrong one for a
+//     moment (jumping over it too) is a splash, brushing past a corner is not.
+// ===================================================================================================
+const KS = { cols: 4, rows: 7, pitch: 2.0, f0: 7.0, padF: 3.8, exitF: 23.0, wallA: 5.5, wallB: 21.4 };
+const ksTile = (sg, r, c) => kPos(sg, KS.f0 + r * KS.pitch, (c - 1.5) * KS.pitch);
+function ksCell(sg, pos) {                                                   // the (row, column) of the pond cell pos stands in, or null
+  const p = kLoc(sg, pos), r = Math.floor((p.f - (KS.f0 - KS.pitch / 2)) / KS.pitch), c = Math.floor(p.l / KS.pitch + KS.cols / 2);
+  return r < 0 || r >= KS.rows || c < 0 || c >= KS.cols ? null : { r, c };
+}
+const ksInLane = (sg, pos) => { const p = kLoc(sg, pos); return p.f > KS.wallA - 0.5 && p.f < KS.wallB + 0.3 && Math.abs(p.l) < 5.4; };
+function kBuildStones(sg, A) {
+  const G = A.stG, c0 = kPos(sg, 14, 0), gy = H(c0.x, c0.z), stone = kLam(0x9b978f);
+  const bw = kBoxW(sg, KS.f0 - KS.pitch / 2, KS.f0 + (KS.rows - 0.5) * KS.pitch, -KS.cols * KS.pitch / 2, KS.cols * KS.pitch / 2);
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(bw.hx * 2, 0.07, bw.hz * 2), new THREE.MeshLambertMaterial({ color: 0x2e78a8, emissive: 0x0a3050 })); bed.position.set(bw.x, gy + 0.04, bw.z); G.add(bed);
+  A.tiles = [];
+  for (let r = 0; r < KS.rows; r++) for (let c = 0; c < KS.cols; c++) {
+    const p = ksTile(sg, r, c), mat = new THREE.MeshLambertMaterial({ color: 0xa4a9ae, emissive: 0x000000 });
+    mat.color.offsetHSL(0, 0, ((r * 7 + c * 13) % 5) * 0.012 - 0.024);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(KS.pitch - 0.2, 0.26, KS.pitch - 0.2), mat); m.position.set(p.x, gy + 0.14, p.z); m.receiveShadow = true; G.add(m);
+    A.tiles.push({ mesh: m, mat, y0: gy + 0.14, key: '' });
+  }
+  for (const s of [-1, 1]) {                                                 // the two walls (solid) with a few pillars
+    const b = kBoxW(sg, KS.wallA, KS.wallB, s * 4.15, s * 5.25), m = new THREE.Mesh(new THREE.BoxGeometry(b.hx * 2, 3.2, b.hz * 2), stone);
+    m.position.set(b.x, gy + 1.6, b.z); m.castShadow = m.receiveShadow = true; G.add(m);
+    KCOL.push({ x: b.x, z: b.z, hx: b.hx, hz: b.hz, bot: gy - 2, top: gy + 3.2, k: 'stones' });
+    for (const f of [KS.wallA, KS.wallB, (KS.wallA + KS.wallB) / 2]) { const p = kPos(sg, f, s * 4.7), pm = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.72, 4.3, 10), kLam(0xb1ada5)); pm.position.set(p.x, gy + 2.15, p.z); pm.castShadow = true; G.add(pm); }
+  }
+  const sp = kPos(sg, KS.padF, 0), pl = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.14, 28), kLam(0xd9b24c)); pl.position.set(sp.x, gy + 0.07, sp.z); G.add(pl);
+  const ri = new THREE.Mesh(new THREE.CylinderGeometry(1.95, 1.95, 0.1, 28), kLam(0x8b7a55)); ri.position.set(sp.x, gy + 0.04, sp.z); G.add(ri);
+  const ep = kPos(sg, KS.exitF, 0), em = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.1, 28), new THREE.MeshLambertMaterial({ color: 0x6fcf7f, emissive: 0x1d6b2c })); em.position.set(ep.x, gy + 0.05, ep.z); G.add(em);
+}
+const ksNew = sg => ({ sg, kind: 'stones', solved: false, prog: 0, heard: false, playing: false, playT: 0, step: -1, padT: 0, fired: false, wrongT: 0, bad: 0, sunk: new Array(KS.rows * KS.cols).fill(0), flash: new Array(KS.rows * KS.cols).fill(0) });
+function ksStep(st, pos, dt, who) {
+  const K = KING, sg = st.sg, pad = kPos(sg, KS.padF, 0);
+  for (let i = 0; i < st.flash.length; i++) { if (st.flash[i] > 0) st.flash[i] = Math.max(0, st.flash[i] - dt); if (st.sunk[i] > 0) st.sunk[i] = Math.max(0, st.sunk[i] - dt); }
+  if (st.bad > 0) st.bad = Math.max(0, st.bad - dt);
+  if (st.solved) return;
+  const onP = Math.hypot(pos.x - pad.x, pos.z - pad.z) < 1.7 && Math.abs(pos.y - H(pad.x, pad.z)) < 1.6;
+  if (onP) st.padT += dt; else { st.padT = 0; st.fired = false; }
+  if (!st.playing && !st.fired && st.padT >= 0.6) {                          // standing on the golden plate shows the safe stones, row by row
+    st.fired = true; st.playing = true; st.playT = 0; st.step = -1; st.prog = 0; st.wrongT = 0; who.kq = 0;
+    if (who === me) toast('👀 Watch which stones light up… remember the path!', 2600);
+  }
+  if (st.playing) {
+    st.playT += dt; const i = Math.floor(st.playT / 0.5);
+    if (i >= KS.rows) { if (st.playT >= KS.rows * 0.5 + 0.4) { st.playing = false; st.heard = true; st.step = -1; if (who === me) toast('Now cross — only those stones are safe', 2600); } }
+    else if (i !== st.step) { st.step = i; st.flash[i * KS.cols + K.path[i]] = 1.0; if (who === me) sfx('tick'); }
+    return;
+  }
+  const cell = ksCell(sg, pos);
+  if (!cell || pos.y > H(pos.x, pos.z) + 3.6) { st.wrongT = 0; return; }
+  const idx = cell.r * KS.cols + cell.c;
+  if (K.path[cell.r] === cell.c) {
+    st.wrongT = 0;
+    if (cell.r + 1 > st.prog) {
+      st.prog = cell.r + 1; who.kq = st.prog; st.flash[idx] = 0.6; if (who === me) sfx('pickup', 0.8);
+      if (st.prog >= KS.rows) kSolved(st, who);
+    }
+  } else { st.wrongT += dt; if (st.wrongT >= 0.1) ksSplash(st, idx, who); }
+}
+function ksSplash(st, idx, who) {                                           // a wrong stone: it sinks, and you are back on the golden plate
+  const p = kPos(st.sg, KS.padF, 0);
+  st.sunk[idx] = 1.7; st.bad = 0.9; st.prog = 0; st.wrongT = 0; who.kq = 0; st.fired = false; st.padT = 0.35; st.heard = false; st.playing = false;
+  who.pos.set(p.x, H(p.x, p.z), p.z); who.vel.set(0, 0, 0); who.grounded = true;
+  if (who === bot) { bot.kRoll = null; bot.kCen = -1; bot.kThink = 0; }
+  if (who === me) { sfx('splash'); toast('💦 Splash! Wrong stone — watch the lit path again', 2800); }
+}
+function ksVisuals(sg, st, theirs) {
+  const A = KING.arena[sg], K = KING, solved = st ? st.solved : theirs && remote.kb === 1;
+  A.tiles.forEach((T, i) => {
+    const r = (i / KS.cols) | 0, c = i % KS.cols, safe = K.path[r] === c;
+    const fl = st ? st.flash[i] : 0, sk = st ? st.sunk[i] : 0, lit = solved && safe ? 0.8 : fl > 0 ? Math.min(1, fl / 0.5) : 0;
+    const key = (sk > 0 ? 'x' : lit > 0.05 ? 'l' + Math.round(lit * 8) : 'n');
+    if (key !== T.key) { T.key = key; if (sk > 0) T.mat.emissive.setHex(0x8a1010); else if (lit > 0.05) T.mat.emissive.setRGB(0.1 * lit, 0.75 * lit, 0.8 * lit); else T.mat.emissive.setHex(0x000000); }
+    T.mesh.position.y = T.y0 - (sk > 0 ? 0.5 * Math.min(1, sk / 0.25, (1.7 - sk) / 0.25 + 0.001) : 0);
+  });
+}
+
+// ===================================================================================================
+//  3. TREBUCHET SHOT: stand on the gold pad, set AIM, ANGLE and POWER, and hit the swinging target to lower your bridge.  The wind pushes the stone
+//     sideways and along, the target slides to and fro, so you have to lead it - and every miss tells you which way you were off.
+//     The flight is a closed-form path (no physics frames), so the result is the same on every phone and the computer can work it out too.
+// ===================================================================================================
+const KT = { D: 30, y0: 5.4, g: 16, R: 3.2, tyOff: 5.0, armT: 0.45, cd: 1.2, tbF: 4, padF: { '1': 14, '-1': 9 }, tbL: { '1': -4, '-1': 0 }, aim: { '1': { x: 0, z: 1 }, '-1': { x: 0, z: -1 } }, noise: { easy: { y: 10, p: 13 }, normal: { y: 6.5, p: 9.5 }, hard: { y: 4.5, p: 6.5 } }, fr: {} };      // each side shoots along its own free line (north from the west pad, south from the north-east one)
+function ktFrame(sg) {
+  if (KT.fr[sg]) return KT.fr[sg];
+  const aim = KT.aim[sg], right = { x: -aim.z, z: aim.x }, pad = kPos(sg, KT.padF[sg], 0), t0 = { x: pad.x + aim.x * KT.tbF + right.x * KT.tbL[sg], z: pad.z + aim.z * KT.tbF + right.z * KT.tbL[sg] };
+  return (KT.fr[sg] = { aim, right, pad, t0, gy: H(t0.x, t0.z), yaw: Math.atan2(aim.x, aim.z) });
+}
+const ktTargetL = t => KING.tgt.A * Math.sin(Math.PI * 2 * t / KING.tgt.Tp + KING.tgt.ph);          // the target's side (to the right of the aim line, in metres) at time t of the round
+function ktSim(sg, yawD, angD, pow, tRel) {                                 // the whole flight of one shot, worked out in one go
+  const F = ktFrame(sg), W = KING.wind, g = KT.g, v = 14 + 0.17 * pow, a = angD * Math.PI / 180, ps = yawD * Math.PI / 180;
+  const vh = v * Math.cos(a), vy = v * Math.sin(a), vf = vh * Math.cos(ps), vl = vh * Math.sin(ps), f0 = 1.5, y0 = F.gy + KT.y0, yT = F.gy + KT.tyOff;
+  const pt = t => ({ f: f0 + vf * t + 0.5 * W.af * t * t, l: vl * t + 0.5 * W.al * t * t, y: y0 + vy * t - 0.5 * g * t * t });
+  let prev = pt(0), t = 0;
+  for (let i = 1; i <= 220; i++) {
+    t = i * 0.04; const cur = pt(t), wx = F.t0.x + F.aim.x * cur.f + F.right.x * cur.l, wz = F.t0.z + F.aim.z * cur.f + F.right.z * cur.l;
+    if (prev.f < KT.D && cur.f >= KT.D) {                                   // through the target's plane
+      const k = (KT.D - prev.f) / (cur.f - prev.f), tc = t - 0.04 + k * 0.04, l = prev.l + (cur.l - prev.l) * k, y = prev.y + (cur.y - prev.y) * k;
+      const dl = l - ktTargetL(tRel + tc), dy = y - yT, d = Math.hypot(dl, dy);
+      return { res: d < KT.R ? 'hit' : 'miss', t: tc, f: KT.D, l, y, dl, dy, d, pt };
+    }
+    if (cur.y < H(wx, wz) + 0.15) return { res: 'short', t, f: cur.f, l: cur.l, y: cur.y, d: 60 + Math.abs(KT.D - cur.f), pt };      // came down before the target
+    prev = cur;
+  }
+  return { res: 'short', t, f: prev.f, l: prev.l, y: prev.y, d: 99, pt };
+}
+function ktText(r) {
+  if (r.res === 'hit') return '🎯 BULLSEYE!';
+  if (r.res === 'short') return `🌱 Fell ${Math.max(1, Math.round(KT.D - r.f))} m short — more power or a higher angle`;
+  if (Math.abs(r.dy) > Math.abs(r.dl)) return r.dy > 0 ? `⬆️ Flew ${Math.max(1, Math.round(r.dy))} m over the target — less power` : `⬇️ Passed ${Math.max(1, Math.round(-r.dy))} m under it — more power`;
+  return r.dl > 0 ? `➡️ Missed ${Math.max(1, Math.round(r.dl))} m to the right of it` : `⬅️ Missed ${Math.max(1, Math.round(-r.dl))} m to the left of it`;
+}
+function ktSolve(sg, tRel) {                                                // the best settings, found by a coarse search and then a fine one (the computer's aim)
+  const ev = (y, a, p) => ktSim(sg, y, a, p, tRel);
+  let best = { d: 1e9 };
+  for (let a = 52; a <= 68; a += 4) for (let p = 30; p <= 100; p += 3) for (let y = -22; y <= 22; y += 2) { const r = ev(y, a, p); if (r.d < best.d) best = { d: r.d, yaw: y, ang: a, pow: p }; }
+  const c = { yaw: best.yaw, ang: best.ang, pow: best.pow };
+  for (let y = c.yaw - 2; y <= c.yaw + 2; y += 0.25) for (let p = c.pow - 3; p <= c.pow + 3; p += 0.5) { const r = ev(y, c.ang, p); if (r.d < best.d) best = { d: r.d, yaw: y, ang: c.ang, pow: p }; }
+  return best;
+}
+function kBuildTreb(sg, A) {
+  const G = A.tbG, F = ktFrame(sg), gy = F.gy, wood = kLam(0x8b5a2b), dark = kLam(0x5a3a1a), iron = kLam(0x55595e);
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.14, 28), kLam(0xd9b24c)); pad.position.set(F.pad.x, H(F.pad.x, F.pad.z) + 0.07, F.pad.z); G.add(pad);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.95, 1.95, 0.1, 28), kLam(0x8b7a55)); ring.position.set(F.pad.x, H(F.pad.x, F.pad.z) + 0.04, F.pad.z); G.add(ring);
+  const T = new THREE.Group(); T.position.set(F.t0.x, gy, F.t0.z); T.rotation.y = F.yaw; G.add(T);       // local +z is the way it shoots
+  const base = new THREE.Mesh(new THREE.BoxGeometry(5, 0.5, 8), dark); base.position.y = 0.25; base.castShadow = base.receiveShadow = true; T.add(base);
+  const P = (x, y, z) => ({ x, y, z });
+  for (const sx of [-1.6, 1.6]) { kBeam(T, P(sx, 0.5, -3.2), P(sx, 5.4, 0), 0.22, wood); kBeam(T, P(sx, 0.5, 3.2), P(sx, 5.4, 0), 0.22, wood); }
+  const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 4.2, 10), iron); axle.rotation.z = Math.PI / 2; axle.position.y = 5.4; T.add(axle);
+  const arm = new THREE.Group(); arm.position.y = 5.4; T.add(arm); A.arm = arm; A.armPhi = -25;
+  const la = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 7.8), wood); la.position.z = -3.9; la.castShadow = true; arm.add(la);
+  const sa = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 2.4), wood); sa.position.z = 1.2; arm.add(sa);
+  const cw = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.9, 1.9), iron); cw.position.set(0, -0.9, 2.6); cw.castShadow = true; arm.add(cw);
+  const sling = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 10), kLam(0x7a7872)); sling.position.z = -7.8; arm.add(sling); A.loaded = sling;
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 10), kLam(0x7a7872)); ball.visible = false; ball.castShadow = true; G.add(ball); A.ball = ball;
+  const puff = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.7, depthWrite: false })); puff.visible = false; G.add(puff); A.puff = puff;
+  const gd = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1), new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.6, depthTest: false })); gd.visible = false; gd.renderOrder = 5; G.add(gd); A.guide = gd;
+  // the wind vane next to the pad
+  const vp = { x: F.pad.x + F.right.x * 3.2, z: F.pad.z + F.right.z * 3.2 }, vg = H(vp.x, vp.z);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 3.4, 8), dark); pole.position.set(vp.x, vg + 1.7, vp.z); G.add(pole);
+  const piv = new THREE.Group(); piv.position.set(vp.x, vg + 3.1, vp.z); G.add(piv); A.vane = piv;
+  const cloth = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.55, 1.5), kLam(0xffffff, 0x666666)); cloth.position.z = 0.8; piv.add(cloth);
+  // the target: two pylons with a rail, and the disc that slides along it
+  const tp = { x: F.t0.x + F.aim.x * KT.D, z: F.t0.z + F.aim.z * KT.D }, rail = 11.2, topY = gy + KT.tyOff + 4.6;
+  for (const s of [-1, 1]) {
+    const px = tp.x + F.right.x * s * rail, pz = tp.z + F.right.z * s * rail, pg = H(px, pz), pm = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, topY - pg + 1.5, 10), kLam(0xa6a29a));
+    pm.position.set(px, (topY + pg - 1.5) / 2 + 0.75, pz); pm.castShadow = true; G.add(pm);
+  }
+  const rm = new THREE.Mesh(new THREE.BoxGeometry(rail * 2 + 1, 0.45, 0.45), dark); rm.position.set(tp.x, topY, tp.z); rm.rotation.y = F.yaw; G.add(rm);
+  const tg = new THREE.Group(); G.add(tg); A.tgt = tg; A.tgtBase = { x: tp.x, z: tp.z, y: gy + KT.tyOff };
+  const ring_ = (r, c, e, off) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.3, 28), kLam(c, e)); m.rotation.x = Math.PI / 2; m.position.z = off; tg.add(m); return m; };
+  ring_(3.2, 0xd8392b, 0x300808, 0); ring_(2.35, 0xf3f1ea, 0x222222, 0.06); ring_(1.5, 0xd8392b, 0x300808, 0.12); A.bull = ring_(0.65, 0xffd34d, 0x6a5010, 0.18);
+  const hang = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.5, 0.16), dark); hang.position.y = 3.9; tg.add(hang);
+  tg.rotation.y = F.yaw;
+}
+const ktNew = sg => ({ sg, kind: 'trebuchet', solved: false, prog: 0, heard: true, onPad: false, cd: 0.6, shot: null, shots: 0, last: null, puffT: 9 });
+function ktStep(st, pos, dt, who) {
+  const F = ktFrame(st.sg);
+  if (st.cd > 0) st.cd = Math.max(0, st.cd - dt);
+  if (st.puffT < 9) st.puffT += dt;
+  if (st.solved) { st.onPad = false; return; }
+  st.onPad = Math.hypot(pos.x - F.pad.x, pos.z - F.pad.z) < 2.0 && Math.abs(pos.y - H(F.pad.x, F.pad.z)) < 1.8;
+  if (st.shot) { st.shot.t += dt; if (st.shot.t >= st.shot.end) ktLand(st, who); }
+}
+function ktFire(st, who, yaw, ang, pow) {
+  if (st.shot || st.cd > 0 || st.solved) return false;
+  const res = ktSim(st.sg, yaw, ang, pow, KING.t + KT.armT);
+  st.shot = { t: 0, res, end: KT.armT + res.t, p: { yaw, ang, pow } }; st.shots++; who.kq = st.shots; st.last = null;
+  if (who === me) sfx('boing');
+  return true;
+}
+function ktLand(st, who) {
+  const r = st.shot.res; st.shot = null; st.cd = KT.cd; st.last = { res: r, text: ktText(r) }; st.puffT = 0; st.puffAt = { f: r.f, l: r.l, y: r.y };
+  if (who === me) sfx(r.res === 'hit' ? 'hit' : 'boom', 0.8);
+  if (r.res === 'hit') kSolved(st, who); else if (who === bot) bot.ktMiss = (bot.ktMiss || 0) + 1;
+}
+function ktVisuals(sg, st, theirs, dt, t) {
+  const A = KING.arena[sg], F = ktFrame(sg), K = KING, w = K.wind;
+  const l = ktTargetL(K.t); A.tgt.position.set(A.tgtBase.x + F.right.x * l, A.tgtBase.y, A.tgtBase.z + F.right.z * l);
+  const solved = st ? st.solved : theirs && remote.kb === 1; A.bull.material.emissive.setHex(solved ? 0xffb000 : 0x6a5010);
+  A.vane.rotation.y = Math.atan2(F.aim.x * w.af + F.right.x * w.al, F.aim.z * w.af + F.right.z * w.al) + Math.sin(t * 5) * 0.06; A.vane.scale.z = 0.7 + Math.hypot(w.af, w.al) * 0.18;
+  const world = (f, ll, y) => ({ x: F.t0.x + F.aim.x * f + F.right.x * ll, y, z: F.t0.z + F.aim.z * f + F.right.z * ll });
+  let phi = A.armPhi, show = false;
+  if (st && st.shot) {
+    const s = st.shot, k = Math.min(1, s.t / KT.armT); phi = -25 + 155 * k * k * (3 - 2 * k); A.armPhi = phi;
+    if (s.t >= KT.armT) { const p = s.res.pt(s.t - KT.armT), q = world(p.f, p.l, p.y); A.ball.position.set(q.x, q.y, q.z); show = true; }
+  } else { const rate = 110 * dt; A.armPhi = phi = phi > -25 ? Math.max(-25, phi - rate) : -25; }
+  A.arm.rotation.x = phi * Math.PI / 180; A.ball.visible = show; A.loaded.visible = !show && !(st && st.shot && st.shot.t >= KT.armT) && A.armPhi < 100;
+  if (st && st.puffAt && st.puffT < 0.7) { const q = world(st.puffAt.f, st.puffAt.l, Math.max(st.puffAt.y, kGround(world(st.puffAt.f, st.puffAt.l, 0)) + 0.3)); A.puff.position.set(q.x, q.y, q.z); A.puff.scale.setScalar(0.6 + st.puffT * 5); A.puff.material.opacity = 0.7 * (1 - st.puffT / 0.7); A.puff.visible = true; }
+  else A.puff.visible = false;
+  const g = A.guide; g.visible = !!(st && !theirs && sg === me.kside && st.onPad && !st.solved);
+  if (g.visible) { const ps = K.tb.yaw * Math.PI / 180, dx = F.aim.x * Math.cos(ps) + F.right.x * Math.sin(ps), dz = F.aim.z * Math.cos(ps) + F.right.z * Math.sin(ps); g.position.set(F.t0.x + dx * 26.5, F.gy + KT.y0, F.t0.z + dz * 26.5); g.scale.z = 50; g.rotation.y = Math.atan2(dx, dz); }
+}
+// ---- the control panel (made once, shown while you stand on the pad) ----
+function ktUI() {
+  const K = KING; if (K.ui) return K.ui;
+  const css = document.createElement('style');
+  css.textContent = `#tbPanel{position:absolute;left:50%;top:calc(122px + var(--safe-t));transform:translateX(-50%);width:min(94vw,560px);padding:7px 10px 8px;border-radius:14px;background:rgba(18,14,10,.72);color:#fff;font:800 12px system-ui,sans-serif;display:none;pointer-events:auto;touch-action:manipulation;z-index:14}
+#tbPanel.show{display:block}#tbPanel .r{display:grid;grid-template-columns:repeat(3,1fr) auto;gap:8px 10px;align-items:end}
+#tbPanel label{display:block}#tbPanel label span{display:flex;justify-content:space-between}#tbPanel i{font-style:normal;color:#ffd34d}
+#tbPanel input[type=range]{width:100%;margin:2px 0 0;height:26px}
+#tbPanel button{height:40px;padding:0 16px;border:0;border-radius:12px;background:#e0482c;color:#fff;font:900 15px system-ui,sans-serif}#tbPanel button:disabled{opacity:.45}
+#tbPanel .t{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}#tbFb{margin-top:5px;min-height:15px;color:#ffe9a0;font-size:12px}
+@media(max-width:560px){#tbPanel .r{grid-template-columns:1fr 1fr}#tbPanel button{grid-column:1/3}}`;
+  document.head.appendChild(css);
+  const el = document.createElement('div'); el.id = 'tbPanel';
+  el.innerHTML = `<div class="t"><b>🎯 Trebuchet — hit the target to lower your bridge</b><span id="tbWind">💨</span></div>
+<div class="r"><label><span>Aim ◀▶ <i id="tbYawV">0°</i></span><input id="tbYaw" type="range" min="-25" max="25" step="0.5" value="0"></label>
+<label><span>Angle <i id="tbAngV">56°</i></span><input id="tbAng" type="range" min="30" max="75" step="1" value="56"></label>
+<label><span>Power <i id="tbPowV">62</i></span><input id="tbPow" type="range" min="20" max="100" step="1" value="62"></label>
+<button id="tbFire">🔥 FIRE</button></div><div id="tbFb"></div>`;
+  (document.getElementById('hud') || document.body).appendChild(el);
+  const bind = (id, key, unit) => { const inp = el.querySelector('#' + id), lab = el.querySelector('#' + id + 'V'); inp.addEventListener('input', () => { K.tb[key] = +inp.value; lab.textContent = inp.value + unit; }); };
+  bind('tbYaw', 'yaw', '°'); bind('tbAng', 'ang', '°'); bind('tbPow', 'pow', '');
+  const fire = e => { if (e) e.preventDefault(); const st = K.P[me.kside]; if (st && st.kind === 'trebuchet' && st.onPad && !me.dead && K.phase === 'play') ktFire(st, me, K.tb.yaw, K.tb.ang, K.tb.pow); };
+  const btn = el.querySelector('#tbFire'); btn.addEventListener('pointerdown', fire); btn.addEventListener('click', e => e.preventDefault());
+  return (K.ui = { el, wind: el.querySelector('#tbWind'), fb: el.querySelector('#tbFb'), fire: btn, shown: false });
+}
+function ktUIUpdate() {
+  const K = KING, ui = ktUI(), st = K.P[me.kside], show = !!(K.on && K.kind === 'trebuchet' && K.phase === 'play' && playing && !me.dead && st && st.kind === 'trebuchet' && st.onPad && !st.solved);
+  if (show !== ui.shown) { ui.shown = show; ui.el.classList.toggle('show', show); }
+  if (!show) return;
+  const w = K.wind, sp = Math.hypot(w.af, w.al), ang = Math.atan2(w.al, w.af) * 180 / Math.PI;
+  ui.wind.innerHTML = `💨 <span style="display:inline-block;transform:rotate(${ang.toFixed(0)}deg)">⬆</span> ${sp.toFixed(1)}`;
+  ui.fb.textContent = st.shot ? '…the stone is flying…' : st.last ? st.last.text : 'Aim along the gold line at the target — it slides, so lead it. The wind pushes the stone.';
+  ui.fire.disabled = !!st.shot || st.cd > 0;
+}
+function ktBot(b, st, go, hold, dt) {
+  const sg = b.kside, F = ktFrame(sg);
+  if (Math.hypot(b.pos.x - F.pad.x, b.pos.z - F.pad.z) > 0.9) return go(F.pad.x, F.pad.z, 1);
+  if (!st.shot && st.cd <= 0) {
+    b.ktWait = (b.ktWait || 0) + dt; if (!b.ktAimT) b.ktAimT = 1.6 + Math.random() * 1.2;
+    if (b.ktWait >= b.ktAimT) {
+      b.ktWait = 0; b.ktAimT = 0;
+      const sol = ktSolve(sg, KING.t + KT.armT), nz = KT.noise[botLevel] || KT.noise.normal, m = Math.pow(0.8, b.ktMiss || 0);   // every miss it learns a little
+      const rn = () => (Math.random() + Math.random() + Math.random() - 1.5) * 2;                 // roughly bell-shaped, about -3..3
+      ktFire(st, b, Math.max(-25, Math.min(25, sol.yaw + rn() * nz.y * m)), sol.ang, Math.max(20, Math.min(100, sol.pow + rn() * nz.p * m)));
+    }
+  }
+  return hold();
+}
+// ---------- the flag ----------
+function kingFlag(show, hex) {
+  const K = KING;
+  if (!K.flag) {
+    const g = new THREE.Group(), pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 3.2, 8), new THREE.MeshLambertMaterial({ color: 0x6b4a2a })); pole.position.y = 1.6; g.add(pole);
+    const cloth = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.9, 0.06), new THREE.MeshLambertMaterial({ color: 0xff8f1f })); cloth.position.set(0.78, 2.7, 0); g.add(cloth);
+    scene.add(g); WORLD0.push(g); K.flag = { g, cloth };
+  }
+  const h = kHole(); K.flag.g.position.set(h.x, h.y, h.z); K.flag.g.visible = !!show; K.flagT = show ? 0 : -1;
+  if (show) { K.flag.cloth.material.color.setHex(hex); K.flag.g.scale.set(1, 0.01, 1); }
+}
+
+
+// ---------- a round ----------
+const kHash = (a, b, c) => (Math.imul(a >>> 0, 2654435761) + Math.imul(b | 0, 40503) + Math.imul(c | 0, 9973)) >>> 0;
+const kNew = (sg, kind) => (kind === 'stones' ? ksNew(sg) : kind === 'trebuchet' ? ktNew(sg) : kcNew(sg));
+function kingPrep() {
+  const K = KING; buildKingArena();
+  K.rnd = Math.min(3, me.kw + remote.kw + 1);
+  const hs = ((role === 1 ? me.sid : remote.sid) | 0) >>> 0, base = kHash(hs, round, 7);
+  const ro = mulberry(base ^ 0x5bd1e995), ord = K_KINDS.slice();                    // the three puzzles in a random order for this match, the same on both phones
+  for (let i = 2; i > 0; i--) { const j = (ro() * (i + 1)) | 0, t = ord[i]; ord[i] = ord[j]; ord[j] = t; }
+  K.order = ord; K.kind = K.force || ord[K.rnd - 1];
+  K.seed = kHash(hs, round, K.rnd + 100);
+  const r = mulberry(K.seed);
+  K.hostSide = K.rnd === 1 ? 1 : K.rnd === 2 ? -1 : (r() < 0.5 ? 1 : -1);          // round 1 the host starts north-east, round 2 west, a deciding round 3 is a coin toss (the walks are equal anyway, this only varies the view)
+  me.kside = role === 1 ? K.hostSide : -K.hostSide; bot.kside = -me.kside;
+  K.len = 5;
+  K.perm = [0, 1, 2, 3]; for (let i = 3; i > 0; i--) { const j = (r() * (i + 1)) | 0, t = K.perm[i]; K.perm[i] = K.perm[j]; K.perm[j] = t; }
+  K.seq = [];                                                  // never the same crystal twice in a row
+  while (K.seq.length < K.len) { const c = (r() * 4) | 0, n = K.seq.length; if (n >= 1 && K.seq[n - 1] === c) continue; K.seq.push(c); }
+  K.path = [(r() * KS.cols) | 0];                              // a safe stone in every row, each one step (or none) sideways from the last; never more than two in a line
+  while (K.path.length < KS.rows) {
+    const p = K.path[K.path.length - 1], run = K.path.length >= 2 && K.path[K.path.length - 2] === p, opts = [];
+    for (const d of [-1, 0, 1]) { const c = p + d; if (c >= 0 && c < KS.cols && !(run && d === 0)) opts.push(c); }
+    K.path.push(opts[(r() * opts.length) | 0]);
+  }
+  const sgn = () => (r() < 0.5 ? -1 : 1);
+  K.wind = { af: sgn() * (0.9 + r() * 2.2), al: sgn() * (1.0 + r() * 2.4) };
+  K.tgt = { A: 6.0 + r() * 1.6, Tp: 7 + r() * 2, ph: r() * 6.283 };
+  me.kb = me.kq = 0; bot.kb = bot.kq = 0; remote.kb = remote.kq = 0; bot.kPlantT = 0; bot.kDone = false; bot.kRoll = null; bot.kFight = 0; bot.noJump = false; bot.ktMiss = 0; bot.ktWait = 0; bot.ktAimT = 0; bot.kCen = -1; bot.kThink = 0;
+  K.plantT = 0; K.t = 0; K.hinted = false; K.phase = 'play'; K.over = false; K.seen = me.kw + remote.kw; K.meAt = me.kw; K.flagT = -1;
+  K.P = {}; K.P[me.kside] = kNew(me.kside, K.kind); if (mode === 'bot') K.P[bot.kside] = kNew(bot.kside, K.kind);
+  me.kdeck = kDeck(me.kside); bot.kdeck = kDeck(bot.kside);
+  setBridge(0, false, true); setBridge(1, false, true);
+  K.grp.visible = true; kcColours(); if (K.flag) K.flag.g.visible = false;
+  for (const sg of [1, -1]) { const A = K.arena[sg]; A.crG.visible = K.kind === 'crystals'; A.stG.visible = K.kind === 'stones'; A.tbG.visible = K.kind === 'trebuchet'; if (A.puff) A.puff.visible = false; if (A.ball) A.ball.visible = false; A.armPhi = -25; }
+  if ($('kingBar')) $('kingBar').classList.remove('show');
+  ktUIUpdate();
+}
+function kingNormal() {                          // every other mode: the castle stands open, both drawbridges down, no arenas
+  const K = KING; K.on = false; me.kdeck = bot.kdeck = -1;
+  if (K.grp) K.grp.visible = false; if (K.flag) K.flag.g.visible = false;
+  setBridge(0, true, true); setBridge(1, true, true);
+  if ($('kingBar')) $('kingBar').classList.remove('show');
+  if (K.ui) K.ui.el.classList.remove('show');
+}
+function setKing(on) {                           // a co-op guest follows the host's choice
+  if (KING.on === on) return;
+  if (!on) { kingNormal(); setSpawn(); if (playing) resetLevel(); updateHud(); return; }
+  KING.on = true; me.kw = remote.kw = bot.kw = 0; kingPrep(); setSpawn(); if (playing) resetLevel(); updateHud();
+  if (playing) { toast(kStartText(), 4200); ggBanner('👑 King of the Castle — best of 3', 2600); }
+}
+function kingNextRound() {
+  const K = KING; kingPrep(); setSpawn(); resetLevel(); resetPickups(); resetPowerups(); clearProjectiles();
+  me.invuln = 1.6; if (mode === 'bot') botNewRound(); else bot.on = false;
+  updateHud(); net.sendNow();
+  ggBanner(`👑 Round ${K.rnd} of 3 — ${K_KNAME[K.kind]}`, 3000); toast(kStartText(), 4200); sfx('pickup');
+}
+function kingRoundEnd(iWon) {
+  const K = KING; K.phase = 'break'; K.over = me.kw >= K_WINS || remote.kw >= K_WINS; K.breakT = K.over ? 3.6 : 5.4; K.plantT = 0;
+  kingFlag(true, iWon ? (role === 1 ? 0xff8f1f : 0x2f8cff) : (role === 1 ? 0x2f8cff : 0xff8f1f)); sfx(iWon ? 'win' : 'ko');
+  me.invuln = Math.max(me.invuln, K.breakT + 0.6); bot.invuln = Math.max(bot.invuln, K.breakT + 0.6);
+  ggBanner(iWon ? `🚩 You planted the flag!  ${me.kw} – ${remote.kw}` : `🚩 ${oppName()} planted the flag first!  ${me.kw} – ${remote.kw}`, 3400);
+  updateHud(); ktUIUpdate();
+}
+function kingPlant() { const K = KING; me.kw++; K.seen = me.kw + remote.kw; kingRoundEnd(true); net.sendNow(); }
+function kingEndMatch() {
+  const K = KING, w = me.kw, l = remote.kw; K.phase = 'done'; roundOver = true; resetInput();
+  $('winEmoji').textContent = w > l ? '👑' : w < l ? '😵' : '🤝';
+  $('winTitle').textContent = w > l ? 'King of the Castle!' : w < l ? `${oppName()} is King` : 'Draw!';
+  $('winText').textContent = `Best of 3 — you ${w} – ${l} ${oppName()}`;
+  $('winNote').textContent = ''; $('againBtn').textContent = 'Rematch'; $('againBtn').disabled = false;
+  showOnly('winPanel'); sfx(w > l ? 'win' : 'ko'); net.sendNow();
+}
+function kPuzzleStep(st, pos, dt, who) { if (st.kind === 'stones') ksStep(st, pos, dt, who); else if (st.kind === 'trebuchet') ktStep(st, pos, dt, who); else kcStep(st, pos, dt, who); }
+const kHintText = () => ({ crystals: '🧩 Stand on the golden plate to see the crystal order', stones: '🪨 Stand on the golden plate to see the safe stones, then cross the pond', trebuchet: '🎯 Step onto the gold pad to aim the trebuchet — hit the target!' })[KING.kind];
+function updateKing(dt, t) {
+  const K = KING; if (!K.on || SKY_ON) return;
+  kingVisuals(dt, t || 0);
+  if (!playing) { ktUIUpdate(); return; }
+  if (K.flagT >= 0 && K.flag) { K.flagT += dt; const k = Math.min(1, K.flagT / 0.9); K.flag.g.scale.y = Math.max(0.01, k * k * (3 - 2 * k)); }
+  if (K.phase === 'play') {
+    const total = me.kw + remote.kw;
+    if (total > K.seen) { K.seen = total; kingRoundEnd(me.kw > K.meAt); return; }
+    K.t += dt;
+    if (!me.dead) {
+      const st = K.P[me.kside]; if (st) kPuzzleStep(st, me.pos, dt, me);
+      if (!K.hinted && K.t > 4.5) { K.hinted = true; if (st && !st.solved && !st.playing && !st.heard && st.kind !== 'trebuchet') toast(kHintText(), 4200); else if (st && st.kind === 'trebuchet' && !st.onPad && !st.shots) toast(kHintText(), 4200); }
+      const h = kHole();
+      if (me.pos.y > h.y - 1.2 && Math.hypot(me.pos.x - h.x, me.pos.z - h.z) < 1.5) { K.plantT += dt; if (K.plantT >= K_PLANT_T) { kingPlant(); return; } }
+      else K.plantT = Math.max(0, K.plantT - dt * 2);
+    } else K.plantT = 0;
+    if (mode === 'bot' && !bot.dead) { const st = K.P[bot.kside]; if (st) kPuzzleStep(st, bot.pos, dt, bot); }
+    const bar = $('kingBar'); if (bar) { bar.classList.toggle('show', K.plantT > 0.05); bar.lastChild.style.width = Math.round(Math.min(1, K.plantT / K_PLANT_T) * 100) + '%'; }
+  } else if (K.phase === 'break') {
+    const bar = $('kingBar'); if (bar) bar.classList.remove('show');
+    K.breakT -= dt; if (K.breakT <= 0) { if (K.over) kingEndMatch(); else kingNextRound(); }
+  }
+  ktUIUpdate();
+}
+function kingVisuals(dt, t) {
+  const K = KING; if (!K.grp || !K.grp.visible) return;
+  for (const sg of [1, -1]) {
+    const A = K.arena[sg]; if (!A) continue;
+    const st = K.P[sg], theirs = sg === -me.kside && mode === 'coop';
+    if (K.kind === 'stones') { ksVisuals(sg, st, theirs); continue; }
+    if (K.kind === 'trebuchet') { ktVisuals(sg, st, theirs, dt, t); continue; }
+    const prog = st ? st.prog : theirs ? remote.kq : 0, solved = st ? st.solved : theirs && remote.kb === 1;
+    for (let j = 0; j < 4; j++) {
+      const c = A.crystals[j], bad = st && st.bad > 0, lit = solved ? 1 : st ? Math.max(st.flash[j] / 0.6, bad ? 0.7 : 0) : 0;
+      if (bad !== c.bad) { c.bad = bad; const h = bad ? 0xff2a2a : K_COL[K.perm[j]]; c.mat.emissive.setHex(h); }
+      c.mat.emissiveIntensity = 0.25 + lit * 1.3; c.beam.visible = lit > 0.05; if (c.beam.visible) c.beam.material.opacity = 0.14 + lit * 0.3;
+      c.mesh.rotation.y += dt * (0.8 + lit * 2.2); c.mesh.position.y = c.y0 + Math.sin(t * 1.6 + j * 1.7) * 0.12;
+    }
+    A.top.rotation.y += dt * 1.4;
+    for (let i = 0; i < 6; i++) {
+      const L = A.lamps[i]; L.mesh.visible = i < K.len;
+      let col = 0x55504a, em = 0;
+      if (solved || i < prog) { col = 0xffd34d; em = 0xaa7a10; }
+      if (st && st.playing && st.step === i) { col = K_COL[K.seq[i]]; em = col; }
+      const key = col + ':' + em; if (key !== L.key) { L.key = key; L.mat.color.setHex(col); L.mat.emissive.setHex(em); }
+    }
+  }
+}
+// where the puzzle's start is (the compass leads there)
+function kStation(sg) { return KING.kind === 'stones' ? kPos(sg, KS.padF, 0) : KING.kind === 'trebuchet' ? ktFrame(sg).pad : kAltar(sg); }
+const kProgText = st => (!st ? '' : st.kind === 'stones' ? `🪨 ${st.prog}/${KS.rows}` : st.kind === 'trebuchet' ? `🎯 ${st.shots} shot${st.shots === 1 ? '' : 's'}` : `🧩 ${st.prog}/${KING.len}`);
+// the compass in this mode: where to go next (it never points at a crystal or a safe stone, that would give the puzzle away)
+function kingCompass() {
+  const K = KING, st = K.P[me.kside], h = kHole(); let tx, tz, label;
+  const inKeep = Math.hypot(h.x - me.pos.x, h.z - me.pos.z) < CAS.keepR + 1.5 && me.pos.y > CAS.lvl + 0.8;
+  if (K.phase !== 'play') { tx = h.x; tz = h.z; label = '🚩'; }
+  else if (!st || !st.solved) { const a = kStation(me.kside); tx = a.x; tz = a.z; label = kProgText(st); }
+  else if (inKeep) { tx = h.x; tz = h.z; label = Math.abs(h.y - me.pos.y) < 1.2 ? '🚩 plant!' : `⬆️ ${Math.max(0, Math.round(h.y - me.pos.y))}m`; }
+  else { const d = kDoor(), wp = castleRoute(me.pos.x, me.pos.z, d.x, d.z); tx = wp ? wp[0] : d.x; tz = wp ? wp[1] : d.z; label = BRIDGES[kDeck(me.kside)].k < 0.97 && castleZone(me.pos.x, me.pos.z) !== 0 ? '🌉' : '🏰'; }
+  const wx = tx - me.pos.x, wz = tz - me.pos.z, fx_ = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), ang = Math.atan2(fx_ * wz - fz * wx, fx_ * wx + fz * wz);
+  compassArrow.style.transform = `rotate(${ang.toFixed(3)}rad)`; compassText.textContent = `${label} ${Math.round(Math.hypot(wx, wz))}m`;
+}
+// ---------- the computer in this mode ----------
+function kingBotGoal(b, dt) {
+  const K = KING, st = K.P[b.kside]; if (!st) return null;
+  const sg = b.kside, h = kHole();
+  const go = (x, z, sp, rg) => { const dx = x - b.pos.x, dz = z - b.pos.z, d = Math.hypot(dx, dz) || 0.01; return { ux: dx / d, uz: dz / d, sp, x, z, rg: rg !== false && sp > 0, d }; };
+  const hold = () => ({ ux: 0, uz: 0, sp: 0, x: b.pos.x, z: b.pos.z, rg: false, d: 0 });
+  const err = { easy: 0.12, normal: 0.05, hard: 0.02 }[botLevel] || 0.05;
+  if (!st.solved) {
+    if (st.kind === 'trebuchet') return ktBot(b, st, go, hold, dt);
+    if (st.kind === 'stones') {
+      const pad = kPos(sg, KS.padF, 0);
+      if (st.playing) return hold();                                                 // watching the stones
+      if (!st.heard) return Math.hypot(b.pos.x - pad.x, b.pos.z - pad.z) < 0.8 ? hold() : go(pad.x, pad.z, 1);
+      if (st.prog === 0 && !b.kThink) b.kThink = { easy: 2.6, normal: 1.6, hard: 0.8 }[botLevel] * (0.6 + Math.random() * 0.8);       // it takes a moment to recall the path
+      if (b.kThink > 0) { b.kThink -= dt; return hold(); }
+      if (st.prog > 0 && b.kCen !== st.prog) {                                        // first to the middle of the stone it is on: from there the diagonal to the next one never touches a wrong cell
+        const c0 = ksTile(sg, st.prog - 1, K.path[st.prog - 1]);
+        if (Math.hypot(b.pos.x - c0.x, b.pos.z - c0.z) > 0.45) return go(c0.x, c0.z, 0.9);
+        b.kCen = st.prog;
+      }
+      if (!b.kRoll || b.kRoll.prog !== st.prog) {                                     // an easy computer sometimes steps on the wrong stone
+        const right = K.path[st.prog]; let col = right;
+        if (Math.random() < err * 1.2) { const o = []; for (let c = 0; c < KS.cols; c++) if (c !== right) o.push(c); col = o[(Math.random() * o.length) | 0]; }
+        b.kRoll = { prog: st.prog, slot: col };
+      }
+      const c = ksTile(sg, st.prog, b.kRoll.slot); return go(c.x, c.z, 0.95);
+    }
+    if (st.playing) return hold();                                                   // watching the crystals
+    if (!st.heard) { const a = kAltar(sg); return Math.hypot(b.pos.x - a.x, b.pos.z - a.z) < 0.8 ? hold() : go(a.x, a.z, 1); }
+    if (!b.kRoll || b.kRoll.prog !== st.prog) {                                      // an easy computer sometimes goes to the wrong crystal
+      const right = K.perm.indexOf(K.seq[st.prog]); let slot = right;
+      if (Math.random() < err) {                                                     // a wrong pick: any crystal but the right one and the one it is standing on (it would never 'touch' that one again)
+        const o = [], prev = st.prog > 0 ? K.perm.indexOf(K.seq[st.prog - 1]) : -1;
+        for (let j = 0; j < 4; j++) if (j !== right && j !== prev) o.push(j);
+        slot = o[(Math.random() * o.length) | 0];
+      }
+      b.kRoll = { prog: st.prog, slot, t: 0 };
+    }
+    const c = kSlot(sg, b.kRoll.slot);
+    if (Math.hypot(b.pos.x - c.x, b.pos.z - c.z) < 1.3) { b.kRoll.t += dt; if (b.kRoll.t > 2.5) { b.kRoll = null; st.inside = [false, false, false, false]; } }       // safety: standing on its pick and nothing happens, choose again
+    return go(c.x, c.z, 0.95);
+  }
+  if (K.kind === 'stones' && ksInLane(sg, b.pos)) { const e = kPos(sg, KS.exitF, 0); return go(e.x, e.z, 1); }      // out of the lane first
+  const zone = castleZone(b.pos.x, b.pos.z), keepD = Math.hypot(b.pos.x - h.x, b.pos.z - h.z);
+  b.noJump = keepD < CAS.keepR + 0.5 && b.pos.y > CAS.lvl + 0.3;                     // no hopping about on the stair, it would leave the steps
+  if (zone !== 0 && BRIDGES[kDeck(sg)].k < 0.97 && Math.hypot(b.pos.x - (CAS.x + sg * (CAS.hx + CAS.out + 3.5)), b.pos.z - kGateZ()) < 7) return hold();      // wait for the bridge
+  if (keepD >= CAS.keepR - 0.3) {                                                      // outside the keep's room: across the bridge, through the courtyard, in at the door
+    const d = kDoor(), dd = Math.hypot(b.pos.x - d.x, b.pos.z - d.z);
+    if (dd > 5) b.kDoorOK = false;
+    if (b.kDoorOK || dd < 1.4) { b.kDoorOK = true; const p0 = kStep(0); return go(p0.x, p0.z, 0.9, false); }
+    return go(d.x, d.z, 1);
+  }
+  b.kDoorOK = false;
+  if (b.pos.y < CAS.lvl + 0.45) { const p0 = kStep(0); return go(p0.x, p0.z, 0.8, false); }
+  const idx = kStairIdx(b.pos);
+  if (idx >= KSTEPS - 3 || keepD < 3.6) {
+    if (keepD < 1.2 && Math.abs(b.pos.y - h.y) < 1.0) { b.kPlantT += dt; if (b.kPlantT >= K_PLANT_T && !b.kDone) { b.kDone = true; b.kw++; } return hold(); }
+    b.kPlantT = Math.max(0, b.kPlantT - dt); return go(h.x, h.z, 0.6, false);
+  }
+  const q = kStep(idx + 2); return go(q.x, q.z, 0.72, false);
+}
+
 const angDiff = (a, b) => Math.abs((((a - b + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI);
 
 const cam = { yaw: 0, pitch: 0.38, dist: 6.2, dragId: null, lastX: 0, lastY: 0, idle: 0 };
@@ -3483,7 +4164,8 @@ function setGunGame(on) {
 function respawn(toSpawn, far) {
   me.padT = 0;
   let yaw = Math.PI;
-  if (toSpawn && SKY_ON && armedMode() && far) {        // coming back after a KO: start from the spawn that is furthest from the opponent
+  if (toSpawn && KING.on && !SKY_ON) yaw = kSpawn(me.kside).yaw;
+  else if (toSpawn && SKY_ON && armedMode() && far) {        // coming back after a KO: start from the spawn that is furthest from the opponent
     const opp = remote.active ? remote.pos : bot.on ? bot.pos : null, sp = SKYW.pickSpawn(opp ? opp.x : 0, opp ? opp.z : 0, !!opp);
     me.spawn.set(sp.x, SKYW.H(sp.x, sp.z), sp.z); yaw = sp.yaw;
   } else if (toSpawn && SKY_ON) { const sp = SKYW.SPAWNS[armedMode() ? (role === 2 ? 1 : 0) : 0]; yaw = sp.yaw; }
@@ -3497,18 +4179,24 @@ function groundAt(x, z, fromY) {
   let g = H(x, z);
   for (const b of COLB) if (Math.abs(x - b.x) <= b.hx && Math.abs(z - b.z) <= b.hz && b.top <= fromY + 0.05 && b.top > g) g = b.top;
   for (const c of COLC) if ((x - c.x) ** 2 + (z - c.z) ** 2 <= c.r * c.r && c.top <= fromY + 0.05 && c.top > g) g = c.top;
+  if (casNear(x, z)) {
+    for (const b of CAS.boxes) if (Math.abs(x - b.x) <= b.hx && Math.abs(z - b.z) <= b.hz && b.top <= fromY + 0.05 && b.top > g) g = b.top;
+    for (const c of CAS.cyls) if ((x - c.x) ** 2 + (z - c.z) ** 2 <= c.r * c.r && c.top <= fromY + 0.05 && c.top > g) g = c.top;
+  }
   return g;
 }
 
 function startGame(m, r) {
   mode = m; role = r || 1; round = 1; roundOver = false;
-  gunGame = (m === 'bot' || (m === 'coop' && role === 1)) && ggPref; ggAnn = 0; hostItems = null;      // the host decides for co-op; a guest hears it in the first packet
+  gunGame = (m === 'bot' || (m === 'coop' && role === 1)) && ggPref; ggAnn = 0; hostItems = null;
+  KING.on = (m === 'bot' || (m === 'coop' && role === 1)) && kingPref; if (KING.on) gunGame = false;      // the host decides for co-op; a guest hears it in the first packet
   Object.assign(remote, { active: false, dead: false, hp: MAX_HP, sid: null, lastEv: 0, deaths: 0, ac: 0, rq: 0, rd: 0, weapon: -1, fl: 0, bn: 0, fz: 0 });
   me.deaths = 0; me.rq = 0; me.events = []; me.evSeq = 0; me.sid = Math.floor(Math.random() * 1e9);
   assignChar(me, me.wantChar); assignChar(remote, remote.wantChar);
   remote.sq.root.visible = false; me.sq.root.visible = true;
   me.sq.tag.sprite.visible = remote.sq.tag.sprite.visible = armedMode();
-  if (m !== 'coop' || role === 1) setMap(mapPref, true);        // the host (or you, on your own) chooses the map; a co-op guest hears it in the first packet
+  if (m !== 'coop' || role === 1) setMap(KING.on ? 0 : mapPref, true);          // the castle is on the island map        // the host (or you, on your own) chooses the map; a co-op guest hears it in the first packet
+  me.kw = remote.kw = bot.kw = 0; if (KING.on) kingPrep(); else kingNormal();
   setSpawn();
   clearProjectiles(); resetLevel();
   cam.yaw = 0; cam.pitch = 0.38;
@@ -3518,7 +4206,7 @@ function startGame(m, r) {
   ['partnerAcorns', 'netStatus', 'hpWrap', 'scoreBox', 'fireBtn', 'weapBtn'].forEach(id => $(id).classList.toggle('hidden', !armedMode() || (mode === 'bot' && (id === 'partnerAcorns' || id === 'netStatus'))));
   if (mode === 'bot') botStart(); else bot.on = false;
   playing = true; ggSync(false); updateHud(); updateWeaponHud();
-  toast(gunGame ? ggStartText() : mode === 'bot' ? `vs Computer (${botL().name}) — first to ${KILL_LIMIT} KOs wins! Grab a weapon 🔫 or punch 👊` : armedMode() ? `First to ${KILL_LIMIT} KOs wins! Grab a weapon 🔫 or punch 👊` : 'Find the acorns — the golden one is on the tower! 🌰', 3200);
+  toast(KING.on ? kStartText() : gunGame ? ggStartText() : mode === 'bot' ? `vs Computer (${botL().name}) — first to ${KILL_LIMIT} KOs wins! Grab a weapon 🔫 or punch 👊` : armedMode() ? `First to ${KILL_LIMIT} KOs wins! Grab a weapon 🔫 or punch 👊` : 'Find the acorns — the golden one is on the tower! 🌰', 3200);
 }
 
 function updateHud() {
@@ -3528,7 +4216,8 @@ function updateHud() {
     if (gunGame) {
       const N = LADDER.length, y = Math.min(remote.deaths + 1, N), o = Math.min(me.deaths + 1, N);
       $('scoreBox').innerHTML = `<div class="gg"><span>You</span><span class="lv">${y}/${N}</span><span class="bar"><i style="width:${Math.round(y / N * 100)}%"></i></span><span class="vs">vs</span><span class="bar o"><i style="width:${Math.round(o / N * 100)}%"></i></span><span class="lv">${o}/${N}</span><span class="nm">${oppName()}</span></div>`;
-    } else $('scoreBox').textContent = `You ${remote.deaths} – ${me.deaths} ${oppName()} · first to ${KILL_LIMIT}`;
+    } else if (KING.on) $('scoreBox').textContent = `👑 You ${me.kw} – ${remote.kw} ${oppName()} · round ${KING.rnd}/3`;
+    else $('scoreBox').textContent = `You ${remote.deaths} – ${me.deaths} ${oppName()} · first to ${KILL_LIMIT}`;
     const hp = Math.max(0, Math.round(me.hp));
     $('hpNum').textContent = hp; $('hpFill').style.width = hp + '%';
     $('hpFill').style.background = hp > 50 ? '#4caf50' : hp > 25 ? '#ffb300' : '#e53935';
@@ -3547,7 +4236,7 @@ function updateWeaponHud() {
 }
 function showOnly(id) { ['menu', 'hostPanel', 'joinPanel', 'winPanel'].forEach(p => $(p).classList.toggle('hidden', p !== id)); }
 function goToMenu() {
-  playing = false; mode = 'menu'; role = 1; round = 1; roundOver = false; net.close(); bot.on = false; clearHitMark();
+  playing = false; mode = 'menu'; role = 1; round = 1; roundOver = false; net.close(); bot.on = false; clearHitMark(); kingNormal();
   $('hud').classList.add('hidden'); $('controls').classList.add('hidden');
   resetInput(); clearProjectiles();
   assignChar(me, me.wantChar); if (remote.sq) remote.sq.root.visible = false;
@@ -3581,13 +4270,14 @@ function endRound() {
 function newRound(r, reset) {
   round = r; roundOver = false; me.deaths = 0; remote.deaths = 0; ggAnn = 0;
   resetPickups(); resetPowerups(); clearProjectiles();
-  if (reset) { resetLevel(); me.invuln = 1.6; if (mode === 'bot') botNewRound(); showOnly(null); toast(gunGame ? `Round ${r} — Gun Game! ${LADDER.length} levels` : `Round ${r} — first to ${KILL_LIMIT} KOs!`, 2200); }
+  if (KING.on) { me.kw = remote.kw = bot.kw = 0; kingPrep(); setSpawn(); if (!reset) resetLevel(); }
+  if (reset) { resetLevel(); me.invuln = 1.6; if (mode === 'bot') botNewRound(); showOnly(null); toast(KING.on ? kStartText() : gunGame ? `Round ${r} — Gun Game! ${LADDER.length} levels` : `Round ${r} — first to ${KILL_LIMIT} KOs!`, 2200); }
   else if (!$('winPanel').classList.contains('hidden')) showOnly(null);
   updateHud(); ggSync(false);
 }
 function checkRound() {
   if (!armedMode() || !playing) return;
-  if (!roundOver) { const lim = gunGame ? LADDER.length : KILL_LIMIT; if (remote.deaths >= lim || me.deaths >= lim) endRound(); return; }
+  if (!roundOver) { if (KING.on) return; const lim = gunGame ? LADDER.length : KILL_LIMIT; if (remote.deaths >= lim || me.deaths >= lim) endRound(); return; }
   const want = round + 1;
   if (me.rq === want && (remote.rq === want || remote.rd === want)) newRound(want, true);
   else $('winNote').textContent = remote.rq === want ? 'Your friend wants a rematch!' : (me.rq === want ? 'Waiting for your friend…' : '');
@@ -3992,6 +4682,32 @@ function readMove() {
 
 /* ---------- Player physics ---------- */
 // gravity, terrain, blocks, columns and the world edge: shared by the player and the computer opponent
+function casSolid(x, y, z) {
+  if (!casNear(x, z)) return false;
+  for (const b of CAS.boxes) if (Math.abs(x - b.x) <= b.hx && Math.abs(z - b.z) <= b.hz && y <= b.top && y >= b.bot) return true;
+  for (const c of CAS.cyls) if (y <= c.top && y >= c.bot && (x - c.x) ** 2 + (z - c.z) ** 2 <= c.r * c.r) return true;
+  return false;
+}
+function colBox(o, b, prevY, wasGrounded) {
+  if (b.deck !== undefined && KING.on && o.kdeck !== b.deck) return;          // King of the Castle: only the solver's own drawbridge can be crossed
+  const dx = o.pos.x - b.x, dz = o.pos.z - b.z;
+  if (Math.abs(dx) <= b.hx + RADIUS * 0.4 && Math.abs(dz) <= b.hz + RADIUS * 0.4 && o.vel.y <= 0 && prevY >= b.top - 0.06 && o.pos.y <= b.top) { o.pos.y = b.top; o.vel.y = 0; o.grounded = true; return; }
+  if (Math.abs(dx) < b.hx + RADIUS && Math.abs(dz) < b.hz + RADIUS && o.pos.y < b.top - 0.06 && o.pos.y + HEIGHT > b.bot) {
+    if (wasGrounded && b.top - o.pos.y <= 0.62) { o.pos.y = b.top; o.vel.y = 0; o.grounded = true; return; }   // step up
+    if (prevY + HEIGHT <= b.bot + 0.02 && o.vel.y > 0) { o.pos.y = b.bot - HEIGHT; o.vel.y = 0; return; }
+    const px = b.hx + RADIUS - Math.abs(dx), pz = b.hz + RADIUS - Math.abs(dz);
+    if (px < pz) { o.pos.x += Math.sign(dx || 1) * px; o.vel.x = 0; } else { o.pos.z += Math.sign(dz || 1) * pz; o.vel.z = 0; }
+  }
+}
+function colCyl(o, c, prevY, wasGrounded) {
+  const dx = o.pos.x - c.x, dz = o.pos.z - c.z, d = Math.hypot(dx, dz);
+  if (d < c.r + RADIUS * 0.4 && o.vel.y <= 0 && prevY >= c.top - 0.06 && o.pos.y <= c.top) { o.pos.y = c.top; o.vel.y = 0; o.grounded = true; return; }
+  if (d < c.r + RADIUS && o.pos.y < c.top - 0.06 && o.pos.y + HEIGHT > c.bot) {
+    if (wasGrounded && c.top - o.pos.y <= 0.62) { o.pos.y = c.top; o.vel.y = 0; o.grounded = true; return; }
+    const push = (c.r + RADIUS - d) / Math.max(d, 0.001);
+    o.pos.x += dx * push; o.pos.z += dz * push;
+  }
+}
 function stepBody(o, dt) {
   o.vel.y = Math.max(-30, o.vel.y + GRAV * dt);
 
@@ -4002,27 +4718,11 @@ function stepBody(o, dt) {
   if (wasGrounded && g - prevY > 0.55) { o.pos.x = ox; o.pos.z = oz; g = H(ox, oz); }
   o.grounded = false;
   if (o.pos.y <= g) { o.pos.y = g; o.vel.y = 0; o.grounded = true; }
-  // stone blocks
-  for (const b of COLB) {
-    const dx = o.pos.x - b.x, dz = o.pos.z - b.z;
-    if (Math.abs(dx) <= b.hx + RADIUS * 0.4 && Math.abs(dz) <= b.hz + RADIUS * 0.4 && o.vel.y <= 0 && prevY >= b.top - 0.06 && o.pos.y <= b.top) { o.pos.y = b.top; o.vel.y = 0; o.grounded = true; continue; }
-    if (Math.abs(dx) < b.hx + RADIUS && Math.abs(dz) < b.hz + RADIUS && o.pos.y < b.top - 0.06 && o.pos.y + HEIGHT > b.bot) {
-      if (wasGrounded && b.top - o.pos.y <= 0.62) { o.pos.y = b.top; o.vel.y = 0; o.grounded = true; continue; }   // step up
-      if (prevY + HEIGHT <= b.bot + 0.02 && o.vel.y > 0) { o.pos.y = b.bot - HEIGHT; o.vel.y = 0; continue; }
-      const px = b.hx + RADIUS - Math.abs(dx), pz = b.hz + RADIUS - Math.abs(dz);
-      if (px < pz) { o.pos.x += Math.sign(dx || 1) * px; o.vel.x = 0; } else { o.pos.z += Math.sign(dz || 1) * pz; o.vel.z = 0; }
-    }
-  }
-  // columns, boulders, trunks
-  for (const c of COLC) {
-    const dx = o.pos.x - c.x, dz = o.pos.z - c.z, d = Math.hypot(dx, dz);
-    if (d < c.r + RADIUS * 0.4 && o.vel.y <= 0 && prevY >= c.top - 0.06 && o.pos.y <= c.top) { o.pos.y = c.top; o.vel.y = 0; o.grounded = true; continue; }
-    if (d < c.r + RADIUS && o.pos.y < c.top - 0.06 && o.pos.y + HEIGHT > c.bot) {
-      if (wasGrounded && c.top - o.pos.y <= 0.62) { o.pos.y = c.top; o.vel.y = 0; o.grounded = true; continue; }
-      const push = (c.r + RADIUS - d) / Math.max(d, 0.001);
-      o.pos.x += dx * push; o.pos.z += dz * push;
-    }
-  }
+  // stone blocks, columns, boulders, trunks (the castle's own are only tested near it)
+  for (const b of COLB) colBox(o, b, prevY, wasGrounded);
+  for (const c of COLC) colCyl(o, c, prevY, wasGrounded);
+  if (casNear(o.pos.x, o.pos.z)) { for (const b of CAS.boxes) colBox(o, b, prevY, wasGrounded); for (const c of CAS.cyls) colCyl(o, c, prevY, wasGrounded); }
+  if (KING.on && KCOL.length) for (const b of KCOL) if (b.k === KING.kind) colBox(o, b, prevY, wasGrounded);
   // world edge + sea
   const rr = Math.hypot(o.pos.x, o.pos.z); if (rr > WORLD_R) { o.pos.x *= WORLD_R / rr; o.pos.z *= WORLD_R / rr; }
   if (o.grounded && H(o.pos.x, o.pos.z) > 0.4 || o.grounded && o.pos.y > 0.6) o.lastSafe.copy(o.pos);
@@ -4045,7 +4745,7 @@ function updateMe(dt) {
   if (me.jumpBuf > 0 && me.coyote > 0) { me.vel.y = JUMP_V * (me.freeze > 0 ? 0.8 : 1); me.grounded = false; me.coyote = 0; me.jumpBuf = 0; sfx('jump'); }
   const sb = stepBody(me, dt), preVy = sb.preVy, wasGrounded = sb.wasGrounded;
   padCheck(me, dt);
-  if (me.pos.y < WATER_Y - 0.5) {
+  if (me.pos.y < WATER_Y - 0.5 || inMoatWater(me.pos)) {
     respawn(false); sfx('splash');
     if (SKY_ON) {
       const hurt = armedMode() && me.hp > 1;
@@ -4113,7 +4813,7 @@ function updateRemote(dt) {
   if (!st) { if (remote.active) { remote.active = false; remote.sq.root.visible = false; updateHud(); setNetStatus(net.waitingText()); } return; }
   const owner = st.p === 2 ? 2 : 1, evs = Array.isArray(st.ev) ? st.ev : [];
   if (mode === 'coop' && role === 2 && st.p === 1) {
-    setGunGame(!!st.gg);
+    setGunGame(!!st.gg); setKing(!!st.kg);
     if ('mp' in st && (st.mp | 0) !== MAP_ID && setMap(st.mp | 0)) toast(`🗺️ ${MAP_INFO[MAP_ID].icon} ${MAP_INFO[MAP_ID].name} — the host's map`, 2400);
     if ('ik' in st) {
       const n = { ko: !!st.ik, gg: !!st.ig }, was = hostItems ? itemsOn() : null;
@@ -4125,6 +4825,10 @@ function updateRemote(dt) {
   const ch = st.ch | 0; if (ch >= 0 && ch < CH.length && ch !== remote.wantChar) assignChar(remote, ch);
   swapIfReady(remote);
   remote.rd = st.rd | 0; remote.rq = st.rq | 0;
+  if (KING.on && remote.rd === round) {
+    remote.kw = Math.max(0, Math.min(9, st.kw | 0));
+    if (mode === 'coop') { const nb = st.kb ? 1 : 0; remote.kq = st.kq | 0; if (nb !== remote.kb) { remote.kb = nb; setBridge(kDeck(-me.kside), !!nb); } }          // their drawbridge goes down on my screen too (it never holds me)
+  }
   if (remote.rd === round) {
     const d = st.de | 0; if (d > remote.deaths && d < 1000) { remote.deaths = d; updateHud(); ggSync(true); }
     if (Array.isArray(st.pk) && (st.mp | 0) === MAP_ID) st.pk.forEach((g, i) => { const p = pickups[i]; g = g | 0; if (p && g > p.gen && g < 1000) { p.gen = g; p.ready = false; p.timer = PICK_RESPAWN; p.grp.visible = false; } });
@@ -4177,7 +4881,7 @@ function myState() {
   while (me.events.length && now - me.events[0]._t > 1500) me.events.shift();
   const ev = me.events.map(e => { const o = Object.assign({}, e); delete o._t; return o; });
   return { x: r2(me.pos.x), y: r2(me.pos.y), z: r2(me.pos.z), r: r2(me.sq.yaw), m: r2(me.run), a: me.grounded ? 0 : 1, c: me.collected.size, p: role, h: Math.max(0, Math.round(me.hp)), g: me.weapon, dd: me.dead ? 1 : 0, sid: me.sid, ev,
-    ch: me.wantChar, de: me.deaths, rd: round, rq: me.rq, mp: MAP_ID, pk: pickups.map(p => p.gen), pu: powerups.map(p => p.gen), sh: Math.round(me.sh), sp: me.spT > 0 ? 1 : 0, dq: me.dqT > 0 ? 1 : 0, fl: me.flameT > 0 ? 1 : 0, bn: me.burn > 0 ? 1 : 0, fz: me.freeze > 0 ? 1 : 0, v: PROTO, gg: gunGame ? 1 : 0, ik: items.ko ? 1 : 0, ig: items.gg ? 1 : 0 };
+    ch: me.wantChar, de: me.deaths, rd: round, rq: me.rq, mp: MAP_ID, pk: pickups.map(p => p.gen), pu: powerups.map(p => p.gen), sh: Math.round(me.sh), sp: me.spT > 0 ? 1 : 0, dq: me.dqT > 0 ? 1 : 0, fl: me.flameT > 0 ? 1 : 0, bn: me.burn > 0 ? 1 : 0, fz: me.freeze > 0 ? 1 : 0, v: PROTO, gg: gunGame ? 1 : 0, ik: items.ko ? 1 : 0, ig: items.gg ? 1 : 0, kg: KING.on ? 1 : 0, kw: me.kw | 0, kb: me.kb | 0, kq: me.kq | 0 };
 }
 function setNetStatus(s) { $('netStatus').textContent = s; }
 
@@ -4304,8 +5008,8 @@ function selectChar(i) {
 $('singleBtn').onclick = () => { net.close(); startGame('single', 1); };
 $('botBtn').onclick = () => { net.close(); startGame('bot', 1); };
 const paintMode = () => {
-  document.querySelectorAll('#modeRow .mode').forEach(b => b.classList.toggle('sel', (b.dataset.g === '1') === ggPref));
-  $('modeNote').textContent = ggPref ? `Gun Game: every KO gives you the next weapon — ${LADDER.length} in all, first to finish wins. Applies to vs Computer and Host Co-op.` : 'Deathmatch: grab weapons around the map, first to 5 KOs wins.';
+  document.querySelectorAll('#modeRow .mode').forEach(b => b.classList.toggle('sel', b.dataset.g === (kingPref ? '2' : ggPref ? '1' : '0')));
+  $('modeNote').textContent = kingPref ? '👑 King of the Castle: solve your puzzle to lower your drawbridge, climb the keep and plant your flag first. Best of 3 — weapons are still out there. Island map; vs Computer and Host Co-op.' : ggPref ? `Gun Game: every KO gives you the next weapon — ${LADDER.length} in all, first to finish wins. Applies to vs Computer and Host Co-op.` : 'Deathmatch: grab weapons around the map, first to 5 KOs wins.';
 };
 const paintItems = () => {
   const k = ggPref ? 'gg' : 'ko', on = items[k];
@@ -4313,7 +5017,7 @@ const paintItems = () => {
   $('itemNote').textContent = (on ? (ggPref ? 'Items on: pads for health, speed, shield and double damage.' : 'Items on: pads for health, speed, shield, double damage and ammo (weapon pickups are always on).') : (ggPref ? 'Items off: just the weapon ladder.' : 'Items off: weapon pickups only, no power-up pads.')) + ' Co-op: the host decides.';
 };
 document.querySelectorAll('#itemRow .item').forEach(b => { b.onclick = () => { const k = ggPref ? 'gg' : 'ko'; items[k] = b.dataset.i === '1'; try { localStorage.setItem('tt_items_' + k, items[k] ? '1' : '0'); } catch (_) {} paintItems(); }; });
-document.querySelectorAll('#modeRow .mode').forEach(b => { b.onclick = () => { ggPref = b.dataset.g === '1'; try { localStorage.setItem('tt_gun', ggPref ? '1' : '0'); } catch (_) {} paintMode(); paintItems(); }; });
+document.querySelectorAll('#modeRow .mode').forEach(b => { b.onclick = () => { ggPref = b.dataset.g === '1'; kingPref = b.dataset.g === '2'; try { localStorage.setItem('tt_gun', ggPref ? '1' : '0'); localStorage.setItem('tt_king', kingPref ? '1' : '0'); } catch (_) {} paintMode(); paintItems(); }; });
 const paintMap = () => {
   document.querySelectorAll('#mapRow .map').forEach(b => b.classList.toggle('sel', (b.dataset.m === '1') === (mapPref === 1)));
   $('mapNote').textContent = mapPref === 1 ? 'Floating islands, rope bridges, a giant oak and pines to climb. Fall in the clouds and you lose 25 HP in a fight. Co-op: the host picks the map.' : 'A big island with a castle, a ship and a tower. Co-op: the host picks the map.';
@@ -4402,6 +5106,7 @@ function botSpawn(first) {
     const c = pickups.filter(p => p.y < H(p.x, p.z) + 3).map(p => ({ p, d: Math.hypot(p.x - me.pos.x, p.z - me.pos.z) })).filter(o => o.d > 38).sort((u, v) => u.d - v.d);
     if (c.length) { const p = c[(Math.random() * Math.min(4, c.length)) | 0].p; x = p.x; z = p.z; }       // one of the nearest spots that is still a fair distance away
   }
+  if (KING.on && !SKY_ON) { const sp = kSpawn(b.kside); x = sp.x; z = sp.z; }          // King of the Castle: it comes back at its own side's start
   b.pos.set(x, H(x, z), z); b.vel.set(0, 0, 0); b.lastSafe.copy(b.pos); b.stuckPos.copy(b.pos); b.grounded = true; b.run = 0;
   b.invuln = first ? 1.2 : 1.6; b.yaw = Math.atan2(me.pos.x - x, me.pos.z - z);
 }
@@ -4418,7 +5123,7 @@ function botState() {
   while (b.events.length && now - b.events[0]._t > 1500) b.events.shift();
   const ev = b.events.map(e => { const o = Object.assign({}, e); delete o._t; return o; });
   return { x: r2(b.pos.x), y: r2(b.pos.y), z: r2(b.pos.z), r: r2(b.yaw), m: r2(b.run), a: b.grounded ? 0 : 1, c: 0, p: 2, h: Math.max(0, Math.round(b.hp)), g: b.weapon,
-    dd: b.dead ? 1 : 0, sid: b.sid, ev, ch: b.ch, de: b.deaths, rd: round, rq: b.rq, sh: Math.round(b.sh), sp: b.spT > 0 ? 1 : 0, dq: b.dqT > 0 ? 1 : 0, fl: b.flameT > 0 ? 1 : 0, bn: b.burn > 0 ? 1 : 0, fz: b.freeze > 0 ? 1 : 0, v: PROTO };
+    dd: b.dead ? 1 : 0, sid: b.sid, ev, ch: b.ch, de: b.deaths, rd: round, rq: b.rq, sh: Math.round(b.sh), sp: b.spT > 0 ? 1 : 0, dq: b.dqT > 0 ? 1 : 0, fl: b.flameT > 0 ? 1 : 0, bn: b.burn > 0 ? 1 : 0, fz: b.freeze > 0 ? 1 : 0, v: PROTO, kw: b.kw | 0, kb: b.kb | 0, kq: b.kq | 0 };
 }
 // ----- being hurt -----
 function botDamage(dmg, dir, freezeSec, kb) {
@@ -4462,7 +5167,7 @@ function botSees() {
 }
 function botProbe(dx, dz, dist) {
   const b = bot, x = b.pos.x + dx * dist, z = b.pos.z + dz * dist, top = groundAt(x, z, b.pos.y + 2.1);
-  return { rise: top - b.pos.y, water: top < WATER_Y + 0.15 || Math.hypot(x, z) > MAPR };
+  return { rise: top - b.pos.y, water: top < WATER_Y + 0.15 || Math.hypot(x, z) > MAPR || moatBad(x, z, top) };
 }
 function botSteer(ux, uz, dt) {
   const b = bot;
@@ -4478,8 +5183,50 @@ function botSteer(ux, uz, dt) {
     const far = botProbe(ux, uz, 3.0);
     if (far.water) { const a = 0.7 * b.avoid, c = Math.cos(a), s = Math.sin(a), nx = ux * c - uz * s; uz = ux * s + uz * c; ux = nx; }
   }
-  if (b.grounded && pr.rise > 0.4 && pr.rise <= 1.95) b.jumpBuf = 0.15;
+  if (!b.noJump && b.grounded && pr.rise > 0.4 && pr.rise <= 1.95) b.jumpBuf = 0.15;
   return [ux, uz];
+}
+function segHitsRect(x0, z0, x1, z1, hx, hz) {           // does the segment pass through the open rectangle round the castle?
+  let t0 = 0, t1 = 1; const dx = x1 - x0, dz = z1 - z0, p = [-dx, dx, -dz, dz], q = [x0 - (CAS.x - hx), (CAS.x + hx) - x0, z0 - (CAS.z - hz), (CAS.z + hz) - z0];
+  for (let i = 0; i < 4; i++) {
+    if (Math.abs(p[i]) < 1e-9) { if (q[i] <= 0) return false; }
+    else { const r = q[i] / p[i]; if (p[i] < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; } }
+  }
+  return t1 - t0 > 1e-4;
+}
+function castleZone(x, z) { return castleD(x, z) < 0.3 ? 0 : (Math.abs(x - CAS.x) < CAS.hx + CAS.out + 2 && Math.abs(z - CAS.z) < CAS.hz + CAS.out + 2) ? 1 : 2; }   // 0 inside the walls, 1 moat and banks, 2 outside
+function castleRoute(ax, az, bx, bz) {       // the next point to walk to on the way from a to b, or null for 'straight on'
+  const PX = CAS.hx + CAS.out + 2, PZ = CAS.hz + CAS.out + 2, gz = CAS.z + CAS.gate, zb = castleZone(bx, bz); let za = castleZone(ax, az);
+  if (za === 0 && zb === 0) return null;
+  if (za === 1 && zb !== 0) {
+    const g = ax >= CAS.x ? 1 : -1, cd = castleD(ax, az);
+    if (Math.abs(az - gz) < 3.4 && g * (ax - CAS.x) > CAS.hx - 3 && g * (ax - CAS.x) < PX + 1.5) return [CAS.x + g * (PX + 4.5), gz];      // on the drawbridge (or at its foot): carry on across, clear of the keep-out box
+    else if (cd >= CAS.out + 0.5) za = 2;                                                             // already across the moat
+    else return [CAS.x + g * (CAS.hx + 2), gz];                                                       // on the ledge under the wall: back to the drawbridge
+  }
+  const detour = (x0, z0, x1, z1) => {
+    if (!segHitsRect(x0, z0, x1, z1, PX, PZ)) return [x1, z1];
+    let best = null, bc = 1e9;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const px = CAS.x + sx * (PX + 3), pz = CAS.z + sz * (PZ + 3);
+      if (segHitsRect(x0, z0, px, pz, PX, PZ)) continue;
+      const c = Math.hypot(px - x0, pz - z0) + Math.hypot(x1 - px, z1 - pz) + (segHitsRect(px, pz, x1, z1, PX, PZ) ? 70 : 0);
+      if (c < bc) { bc = c; best = [px, pz]; }
+    }
+    return best || [x1, z1];
+  };
+  const ox = g => CAS.x + g * (CAS.hx + CAS.out + 3.5), mouth = g => CAS.x + g * 14;
+  if (za === 2 && zb === 2) return segHitsRect(ax, az, bx, bz, PX, PZ) ? detour(ax, az, bx, bz) : null;
+  if (zb === 0) {                                          // the target is inside: through the nearer gate
+    const g = ax >= CAS.x ? 1 : -1;
+    if (za === 2) return Math.hypot(ax - ox(g), az - gz) > 3.5 ? detour(ax, az, ox(g), gz) : [mouth(g), gz];
+    return Math.abs(az - gz) < 3.2 && g * (ax - CAS.x) > CAS.hx - 2 ? [mouth(g), gz] : [ox(g), gz];
+  }
+  if (za === 0) {                                          // the bot is inside, the target is out
+    const g = bx >= CAS.x ? 1 : -1;
+    return g * (ax - CAS.x) < 12 ? [mouth(g), gz] : [ox(g) + g * 3, gz];
+  }
+  return null;
 }
 function botLadder() {
   const b = bot, w = LADDER[Math.min(me.deaths, LADDER.length - 1)];
@@ -4604,7 +5351,14 @@ function botUpdate(dt) {
   if (!roundOver) { b.thinkT -= dt; if (b.thinkT <= 0) { b.thinkT = L.think * (0.8 + Math.random() * 0.4); botThink(); } }
   // where to go
   let ux = 0, uz = 0, sp = 0, rgx = 0, rgz = 0, rg = false; const w = b.weapon, melee = w < 0 || WEAPONS[w].melee, pref = BOT_PREF[w + 1];
-  if (!roundOver) {
+  let kg = null;
+  if (KING.on && KING.phase === 'play' && !roundOver) {                            // King of the Castle: it plays for the flag, and fights when you are close, can see it or have hurt it
+    if (b.hurtT > 0.5) b.kFight = 2.5; b.kFight -= dt;
+    const near = b.goal === 'pickup' && b.tp >= 0 && pickups[b.tp].ready && Math.hypot(pickups[b.tp].x - b.pos.x, pickups[b.tp].z - b.pos.z) < 16;
+    if (!near && !(live && ((b.sees && d < 24) || b.kFight > 0))) kg = kingBotGoal(b, dt);
+  }
+  if (kg) { ux = kg.ux; uz = kg.uz; sp = kg.sp; rgx = kg.x; rgz = kg.z; rg = kg.rg; }
+  else if (!roundOver) {
     if ((b.goal === 'pickup' && b.tp >= 0 && pickups[b.tp].ready) || (b.goal === 'power' && b.tp >= 0 && powerups[b.tp].ready)) {
       const p = b.goal === 'power' ? powerups[b.tp] : pickups[b.tp], px = p.x - b.pos.x, pz = p.z - b.pos.z, pd = Math.hypot(px, pz) || 0.01; ux = px / pd; uz = pz / pd; sp = 1; rgx = p.x; rgz = p.z; rg = true;
     } else if (live) {
@@ -4614,12 +5368,16 @@ function botUpdate(dt) {
       else { b.strafeT -= dt; if (b.strafeT <= 0) { b.strafe = -b.strafe; b.strafeT = 0.7 + Math.random() * 1.2; } ux = -tz * b.strafe; uz = tx * b.strafe; sp = 0.75; }
     }
   }
+  if (!SKY_ON && rg && sp > 0) {                  // the castle is in the way / the goal is inside it: use the gates
+    const wp = castleRoute(b.pos.x, b.pos.z, rgx, rgz);
+    if (wp) { const wx = wp[0] - b.pos.x, wz = wp[1] - b.pos.z, wl = Math.hypot(wx, wz) || 1; ux = wx / wl; uz = wz / wl; sp = Math.max(sp, 0.9); }
+  }
   if (SKY_ON && rg && sp > 0) {                   // the goal is on another island: head for the next bridge instead of straight at it
     const wp = SKYW.route(b.pos.x, b.pos.z, rgx, rgz);
     if (wp) { const wx = wp[0] - b.pos.x, wz = wp[1] - b.pos.z, wl = Math.hypot(wx, wz) || 1; ux = wx / wl; uz = wz / wl; sp = Math.max(sp, 0.9); }
   }
   b.jumpT -= dt;
-  if (b.jumpT <= 0) { b.jumpT = (1.2 + Math.random() * 2.6) / L.jump; if (live && d < 30 && b.grounded && sp > 0.4 && Math.random() < 0.6) b.jumpBuf = 0.15; }
+  if (b.jumpT <= 0) { b.jumpT = (1.2 + Math.random() * 2.6) / L.jump; if (live && d < 30 && b.grounded && sp > 0.4 && !b.noJump && Math.random() < 0.6) b.jumpBuf = 0.15; }
   if (sp > 0) { const r = botSteer(ux, uz, dt); ux = r[0]; uz = r[1]; }
   // stuck? turn around the obstacle, and give up on a pickup it cannot reach
   b.stuckT += dt;
@@ -4638,7 +5396,7 @@ function botUpdate(dt) {
   if (b.jumpBuf > 0 && b.coyote > 0) { b.vel.y = JUMP_V * (b.freeze > 0 ? 0.8 : 1); b.grounded = false; b.coyote = 0; b.jumpBuf = 0; }
   stepBody(b, dt);
   padCheck(b, dt);
-  if (b.pos.y < WATER_Y - 0.5) { b.pos.copy(b.lastSafe); if (SKY_ON) SKYW.safeNudge(b.pos); b.vel.set(0, 0, 0); b.padT = 0; }
+  if (b.pos.y < WATER_Y - 0.5 || inMoatWater(b.pos)) { b.pos.copy(b.lastSafe); if (SKY_ON) SKYW.safeNudge(b.pos); b.vel.set(0, 0, 0); b.padT = 0; }
   const hs = Math.hypot(b.vel.x, b.vel.z); b.run = Math.min(1, hs / SPEED);
   // facing: toward me when fighting, otherwise the way it walks
   if (live && (b.goal === 'fight' || b.sees) && d < 60) b.yaw = lerpAngle(b.yaw, Math.atan2(dx, dz), dt * L.turn);
@@ -4656,6 +5414,7 @@ function botUpdate(dt) {
 /* ---------- Compass to the nearest acorn ---------- */
 const compassArrow = $('compassArrow'), compassText = $('compassText');
 function updateCompass() {
+  if (KING.on && !SKY_ON) { kingCompass(); return; }
   let tx = 0, tz = 0, bd = 1e9, found = false, label = '🌰';
   if (armedMode() && me.weapon === -1 && !me.owned.some(Boolean)) {          // no weapon yet: point at the nearest one
     pickups.forEach(p => { if (!p.ready) return; const d = Math.hypot(p.x - me.pos.x, p.z - me.pos.z); if (d < bd) { bd = d; tx = p.x; tz = p.z; found = true; label = '🔫'; } });
@@ -4687,7 +5446,8 @@ function frameBody() {
   updateSky(dt, t);
   goalAcorn.rotation.y += dt * 0.8; goalAcorn.position.y = goalTop + 2.4 + Math.sin(t * 1.5) * 0.25;
   beam.material.opacity = 0.14 + Math.sin(t * 2) * 0.04;
-  waterNormal.offset.set(t * 0.004, t * 0.0025);
+  waterNormal.offset.set(t * 0.004, t * 0.0025); if (moatNormal) moatNormal.offset.set(t * 0.012, t * 0.008);
+  updateBridges(dt);
   updatePickups(dt, t); updatePowerups(dt, t);
 
   const winOpen = !$('winPanel').classList.contains('hidden');
@@ -4699,7 +5459,7 @@ function frameBody() {
   if (playing && armedMode()) {
     if (mode === 'bot') botUpdate(dt);
     remote.sq.tag.setLabel(mode === 'bot' ? 'CPU' : (remote.sq.slot === 1 ? 'P1' : 'P2'));
-    updateRemote(dt); updateStatus(dt); net.tick(dt); checkRound();
+    updateRemote(dt); updateStatus(dt); net.tick(dt); checkRound(); updateKing(dt, t);
     if (remote.active) animateActor(remote.sq, dt, t, remote.run, remote.air);
     updatePower(dt, t);
     me.sq.tag.draw(me.hp, true); remote.sq.tag.draw(remote.hp, true);
@@ -4730,6 +5490,11 @@ function frameBody() {
       const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), hh = CH[me.char].meta.hit, up = Math.max(0.7, hh * 0.75), dist = cam.dist * (camera.aspect < 1 ? 1.12 : 1) * (0.85 + hh * 0.15);
       camTarget.set(me.pos.x + Math.sin(cam.yaw) * cp * dist, me.pos.y + up + 0.2 + sp * dist, me.pos.z + Math.cos(cam.yaw) * cp * dist);
       const minY = Math.max(H(camTarget.x, camTarget.z), WATER_Y) + 0.6; if (camTarget.y < minY) camTarget.y = minY;
+      if (casNear(me.pos.x, me.pos.z) || casNear(camTarget.x, camTarget.z)) {       // inside or beside the castle: pull the camera in front of any wall
+        const sx = me.pos.x, sy = me.pos.y + up, sz = me.pos.z; let k = 1;
+        for (let i = 1; i <= 10; i++) { const f = i / 10; if (casSolid(sx + (camTarget.x - sx) * f, sy + (camTarget.y - sy) * f, sz + (camTarget.z - sz) * f)) { k = Math.max(0.1, (i - 1.6) / 10); break; } }
+        if (k < 1) camTarget.set(sx + (camTarget.x - sx) * k, sy + (camTarget.y - sy) * k, sz + (camTarget.z - sz) * k);
+      }
       camera.position.lerp(camTarget, 1 - Math.exp(-dt * 8));
       lookTarget.set(me.pos.x, me.pos.y + up, me.pos.z);
       camLook.lerp(lookTarget, 1 - Math.exp(-dt * 12));
