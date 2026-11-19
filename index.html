@@ -293,12 +293,18 @@ const saveAudioPref = () => { try { localStorage.setItem('tt_audio', JSON.string
 const MUSIC_VOL = 0.5, MUSIC_FILES = ['./music1.m4a'], XFADE = 9;
 const SFX_BUF = {};            // name -> [AudioBuffer, ...] (several takes of the same sound so it never repeats exactly)
 let sfxPack = null, sfxDecoding = false;
-try { fetch('./sfx.pack').then(r => (r.ok ? r.arrayBuffer() : null)).then(b => { sfxPack = b; decodeSfxPack(); }).catch(() => {}); } catch (_) {}
+const PACKWARN = { miss: [], t: 0 };
+function packWarn(name) {
+  if (PACKWARN.miss.includes(name)) return; PACKWARN.miss.push(name); clearTimeout(PACKWARN.t);
+  PACKWARN.t = setTimeout(() => { try { toast('\u26a0 ' + PACKWARN.miss.join(' + ') + ' did not load - upload it next to index.html, then fully close and reopen the app', 7000); } catch (_) {} }, 2500);
+}
+try { fetch('./sfx.pack').then(r => (r.ok ? r.arrayBuffer() : (packWarn('sfx.pack'), null))).then(b => { sfxPack = b; decodeSfxPack(); }).catch(() => { packWarn('sfx.pack'); }); } catch (_) {}
 const sfxDone = [false, false]; let sfxPack2 = null;
-try { fetch('./sfx2.pack').then(r => (r.ok ? r.arrayBuffer() : null)).then(b => { sfxPack2 = b; decodeSfxPack(); }).catch(() => {}); } catch (_) {}
+try { fetch('./sfx2.pack').then(r => (r.ok ? r.arrayBuffer() : (packWarn('sfx2.pack'), null))).then(b => { sfxPack2 = b; decodeSfxPack(); }).catch(() => { packWarn('sfx2.pack'); }); } catch (_) {}
 function decodeSfxPack() {
   [sfxPack, sfxPack2].forEach((pk, ix) => {
     if (!actx || !pk || sfxDone[ix]) return; sfxDone[ix] = true;
+    if (ix === 1) setTimeout(() => { if (['w_revolver', 's_beam', 'rl_revolver', 'imp_rock'].some(n => !SFX_BUF[n])) packWarn('a newer sfx2.pack'); }, 20000);
     try {
       const dv = new DataView(pk);
       if (dv.getUint32(0, false) !== 0x54545331) return;                       // 'TTS1'
@@ -2624,7 +2630,7 @@ function fx(pos, color, s0, s1, life, op, vy = 0) {
   m.userData = { t: 0, life, s0, s1, op, vy }; scene.add(m); fxLive.push(m);
 }
 function updateFx(dt) {
-  fbUpdate(dt);
+  fbUpdate(dt); impTick(dt);
   for (let i = fxLive.length - 1; i >= 0; i--) {
     const m = fxLive[i], u = m.userData; u.t += dt; const k = u.t / u.life;
     if (k >= 1) { scene.remove(m); fxLive.splice(i, 1); fxPool.push(m); continue; }
@@ -2682,7 +2688,7 @@ async function loadFx() {
     // get the textures and the shader onto the GPU a bit at a time, so the first blast in a match does not hitch
     Object.keys(FXB.sheets).forEach((nm, i) => setTimeout(() => { try { if (renderer.initTexture) renderer.initTexture(FXB.sheets[nm].tex); } catch (_) {} }, 400 + i * 350));
     setTimeout(() => { try { const nm = Object.keys(FXB.sheets)[0], m = fbSprite(FXB.sheets[nm], V(0, -500, 0), { world: 0.01, life: 0.1, op: 0.001 }); if (m) m.mesh.frustumCulled = false; } catch (_) {} }, 400);
-  } catch (e) { FXB.ready = false; console.warn('fx.pack not loaded - using the built-in explosion puffs', e); }
+  } catch (e) { FXB.ready = false; console.warn('fx.pack not loaded - using the built-in explosion puffs', e); packWarn('fx.pack'); }
 }
 // one flipbook playing: o = { world (metres across the fireball), life, op, tint, tintAmt, lift, rise, loop, rate, fade, delay }
 function fbSprite(sh, pos, o) {
@@ -2841,7 +2847,7 @@ function spawnPellets(w, origin, dir, owner, seed) {
     spawnProjectile(w, origin, V(dir.x + rx * c + ux * s, dir.y + uy * s, dir.z + rz * c + uz * s).normalize(), owner, 0, k > 0);
   }
 }
-function clearProjectiles() { burstQ.length = 0; projs.forEach(p => scene.remove(p.mesh)); projs.length = 0; stuckBolts.forEach(b => scene.remove(b.mesh)); stuckBolts.length = 0; }
+function clearProjectiles() { impClear(); burstQ.length = 0; projs.forEach(p => scene.remove(p.mesh)); projs.length = 0; stuckBolts.forEach(b => scene.remove(b.mesh)); stuckBolts.length = 0; }
 function solidAt(v) {
   if (v.y < H(v.x, v.z)) return true;
   if (v.y < WATER_Y - 0.3) return true;
@@ -2882,6 +2888,118 @@ function stepGrenade(p, dt) {
   p.smoke -= dt; if (p.smoke <= 0) { p.smoke = 0.07; { const gm = gd.mesh, hot = gm === 'dyn' || gm === 'bottle'; fx(ps, hot ? 0xffb300 : gm === 'gbomb' ? 0xb07dff : gm === 'nova' ? 0xff6a6a : 0xbdbdbd, 0.05, 0.2, 0.35, hot || gm === 'gbomb' || gm === 'nova' ? 0.9 : 0.5, 0.2); } }
   return false;
 }
+/* ---------- Bullet impacts (v42f): sparks, dust, chips, bullet holes that fade, and a short hit sound from the real recordings (sfx2.pack: imp_*) ---------- */
+const IMPD = { holes: [], free: [], tex: {}, sparkMat: {}, snd: 0, up: new THREE.Vector3(0, 0, 1) };
+function impTex(kind) {
+  if (IMPD.tex[kind]) return IMPD.tex[kind];
+  const t = fbCanvasTex(64, (x, w) => {
+    const c = w / 2; let g;
+    if (kind === 'hole') {
+      g = x.createRadialGradient(c, c, 0, c, c, w * 0.5); g.addColorStop(0, 'rgba(8,6,4,0.95)'); g.addColorStop(0.2, 'rgba(12,9,6,0.9)'); g.addColorStop(0.36, 'rgba(24,18,12,0.42)'); g.addColorStop(1, 'rgba(24,18,12,0)');
+      x.fillStyle = g; x.fillRect(0, 0, w, w);
+      x.strokeStyle = 'rgba(14,10,7,0.6)'; x.lineWidth = 1.1;
+      for (let k = 0; k < 7; k++) { const a = k * 0.9 + 0.3, r0 = w * 0.09, r1 = w * (0.26 + ((k * 37) % 10) * 0.016); x.beginPath(); x.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0); x.lineTo(c + Math.cos(a + 0.08) * r1, c + Math.sin(a + 0.08) * r1); x.stroke(); }
+      x.strokeStyle = 'rgba(235,225,205,0.26)'; x.lineWidth = 1.4; x.beginPath(); x.arc(c, c, w * 0.17, 0, 6.3); x.stroke();      // the chipped, lighter rim
+    } else if (kind === 'burn') {
+      g = x.createRadialGradient(c, c, 0, c, c, w * 0.5); g.addColorStop(0, 'rgba(6,6,10,0.92)'); g.addColorStop(0.28, 'rgba(14,12,18,0.7)'); g.addColorStop(0.5, 'rgba(18,16,22,0)');
+      x.fillStyle = g; x.fillRect(0, 0, w, w);
+      x.strokeStyle = 'rgba(255,255,255,0.28)'; x.lineWidth = 5; x.beginPath(); x.arc(c, c, w * 0.2, 0, 6.3); x.stroke();                  // glowing melted rim (takes the beam colour)
+      x.strokeStyle = 'rgba(255,255,255,0.9)'; x.lineWidth = 1.8; x.beginPath(); x.arc(c, c, w * 0.2, 0, 6.3); x.stroke();
+    } else {
+      g = x.createRadialGradient(c, c, 0, c, c, w * 0.5); g.addColorStop(0, 'rgba(255,255,255,0.8)'); g.addColorStop(0.35, 'rgba(255,255,255,0.4)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.fillRect(0, 0, w, w); x.strokeStyle = 'rgba(255,255,255,0.75)'; x.lineWidth = 1.2;
+      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + 0.2, r1 = w * (0.3 + (k % 2) * 0.12); x.beginPath(); x.moveTo(c, c); x.lineTo(c + Math.cos(a) * r1, c + Math.sin(a) * r1); x.stroke(); }
+    }
+  });
+  IMPD.tex[kind] = t; return t;
+}
+function impHole(P, n, kind, size, col, life) {
+  let m = IMPD.free.pop();
+  if (!m) {
+    if (IMPD.holes.length >= 34) m = IMPD.holes.shift();
+    else { m = new THREE.Mesh(fbPlane, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); m.renderOrder = 1; scene.add(m); }
+  }
+  const M = m.material; M.map = impTex(kind); M.color.setHex(col); M.opacity = 1; M.needsUpdate = true;
+  m.position.copy(P).addScaledVector(n, 0.02); m.quaternion.setFromUnitVectors(IMPD.up, n); m.rotateZ(Math.random() * 6.283); m.scale.set(size, size, 1); m.visible = true;
+  m.userData = { t: 0, life }; IMPD.holes.push(m);
+}
+function impTick(dt) {
+  for (let i = IMPD.holes.length - 1; i >= 0; i--) {
+    const m = IMPD.holes[i], u = m.userData; u.t += dt; const k = u.t / u.life;
+    if (k >= 1) { m.visible = false; IMPD.holes.splice(i, 1); IMPD.free.push(m); continue; }
+    m.material.opacity = k < 0.7 ? 1 : (1 - k) / 0.3;
+  }
+}
+function impClear() { for (const m of IMPD.holes) { m.visible = false; IMPD.free.push(m); } IMPD.holes.length = 0; }
+function impSpark(P, n, cnt, col, sp) {
+  let mat = IMPD.sparkMat[col]; if (!mat) mat = IMPD.sparkMat[col] = new THREE.MeshBasicMaterial({ color: col });
+  for (let i = 0; i < cnt; i++) {
+    let m = fbDeb.pop(); if (!m) m = new THREE.Mesh(fbBox, mat); else m.material = mat;
+    const v = V(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(1.4).add(n).normalize().multiplyScalar(sp * (0.45 + Math.random() * 0.75));
+    m.position.copy(P).addScaledVector(n, 0.05); m.rotation.set(0, 0, 0); const s = 0.042 + Math.random() * 0.034; m.scale.setScalar(s);
+    scene.add(m); fbDebLive.push({ m, t: 0, life: 0.22 + Math.random() * 0.3, v, rot: V(), spark: true, s });
+  }
+}
+function impChips(P, n, cnt) {
+  for (let i = 0; i < cnt; i++) {
+    const mat = fbDebMats[i % fbDebMats.length]; let m = fbDeb.pop(); if (!m) m = new THREE.Mesh(fbBox, mat); else m.material = mat;
+    const v = V(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).add(n.clone().multiplyScalar(1.1)).normalize().multiplyScalar(1.6 + Math.random() * 2.4);
+    m.position.copy(P).addScaledVector(n, 0.05); m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); const s = 0.035 + Math.random() * 0.035; m.scale.setScalar(s);
+    scene.add(m); fbDebLive.push({ m, t: 0, life: 0.55 + Math.random() * 0.4, v, rot: V(Math.random() * 12 - 6, 0, Math.random() * 12 - 6), spark: false, s });
+  }
+}
+function impPuffs(P, n, cnt, col, big) {
+  if (fxLive.length > 260) return;
+  for (let i = 0; i < cnt; i++) {
+    const q = V(P.x + n.x * 0.06 + (Math.random() - 0.5) * 0.14, P.y + n.y * 0.06 + (Math.random() - 0.5) * 0.14, P.z + n.z * 0.06 + (Math.random() - 0.5) * 0.14);
+    fx(q, col, 0.05 + Math.random() * 0.03, (big ? 0.42 : 0.28) + Math.random() * 0.12, 0.38 + Math.random() * 0.18, 0.6, 0.35 + Math.random() * 0.35);
+  }
+}
+function impFlash(P, n, col, s) { if (FXB.extras.length < 24) fbExtra('flash', V(P.x + n.x * 0.08, P.y + n.y * 0.08, P.z + n.z * 0.08), s * 0.4, s, 0.1, 0.9, col); }
+function impSnd(name, vol, P) {
+  const now = performance.now(); if (now - IMPD.snd < 55 || !SFX_BUF[name]) return;       // a real recording or nothing: never a synthesized stand-in
+  IMPD.snd = now; sfx(name, vol * volAt(P));
+}
+function impactAt(p, def, dt1) {
+  const vl = p.vel.length() || 1, dirv = V(p.vel.x / vl, p.vel.y / vl, p.vel.z / vl);
+  let a = V(p.pos.x - p.vel.x * dt1, p.pos.y - p.vel.y * dt1, p.pos.z - p.vel.z * dt1), b = p.pos.clone();
+  if (solidAt(a)) a.copy(p.pos).addScaledVector(dirv, -0.12);                              // fired from inside a wall: back up a little
+  for (let i = 0; i < 5; i++) { const m = V((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); if (solidAt(m)) b = m; else a = m; }
+  const P = a;
+  if (me.pos.distanceTo(P) > 70) return;
+  const gy = H(P.x, P.z), lite = perf.scale < 0.8 ? 0.5 : 1;
+  if (SKY_ON) { if (P.y <= WATER_Y + 0.6) return; }
+  else if (gy < WATER_Y - 0.3 && P.y <= WATER_Y - 0.15) {                                  // open water: a little splash
+    const up = V(0, 1, 0); impPuffs(P, up, 3, 0xdff3ff, false); impSnd('splash', 0.3, P); return;
+  }
+  let n, ground = P.y - gy < 0.2;
+  if (ground) { const e = 0.25, dx = (H(P.x + e, P.z) - H(P.x - e, P.z)) / (2 * e), dz = (H(P.x, P.z + e) - H(P.x, P.z - e)) / (2 * e); n = V(-dx, 1, -dz).normalize(); }
+  else {
+    n = V(); const e = 0.09, ax = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+    for (const d of ax) if (solidAt(V(P.x + d[0] * e, P.y + d[1] * e, P.z + d[2] * e))) { n.x -= d[0]; n.y -= d[1]; n.z -= d[2]; }
+    if (n.lengthSq() < 0.01) n.copy(dirv).negate(); else n.normalize();
+  }
+  if (n.dot(dirv) > 0) n.negate();
+  const ice = p.kind === 'ice', energy = !ice && /^s_|plasma/.test(def.sfx || ''), col = def.glow || def.color || 0xffe0a0, pel = !!def.pellets;
+  const dust = SKY_ON ? 0xcfd3da : ground ? 0xa08c68 : 0xb4aea2, size = Math.min(0.62, 0.21 + (def.dmg || 10) * 0.006) * (pel ? 0.8 : 1);
+  if (ice) {
+    impHole(P, n, 'frost', size * 1.5, 0xbff4ff, 8); impSpark(P, n, Math.round(7 * lite), 0xdff8ff, 3.6); impFlash(P, n, 0xcfefff, 0.45); impPuffs(P, n, 2, 0xe8fbff, false); impSnd('imp_ice', 0.8, P);
+  } else if (energy) {
+    impHole(P, n, 'burn', size * 1.25, col, 7); impSpark(P, n, Math.round(8 * lite), col, 4.8); impFlash(P, n, col, 0.55); impPuffs(P, n, 1, 0xcfd2d8, false); impSnd('imp_zap', 0.8, P);
+  } else if (p.kind === 'bolt') {
+    impPuffs(P, n, 2, dust, false); impSnd('imp_rock', 0.4, P);                           // the bolt itself stays stuck in the wall
+  } else if (ground) {
+    impHole(P, n, 'hole', size, 0xffffff, 14); impPuffs(P, n, Math.round((pel ? 2 : 3) * lite), dust, true); if (!pel) impChips(P, n, Math.round(3 * lite)); impSnd('imp_rock', 0.8, P);
+  } else {
+    impHole(P, n, 'hole', size, 0xffffff, 14); impSpark(P, n, Math.round((pel ? 3 : 7) * lite), 0xffd27a, 6); if (!pel) impFlash(P, n, 0xffd890, 0.42); impPuffs(P, n, Math.round(2 * lite), dust, false);
+    if (!pel && Math.random() < 0.35) impSnd('imp_metal', 0.65, P); else impSnd('imp_rock', 0.8, P);
+  }
+}
+function impFleck(p, def) {                                                                  // a bullet that strikes a squirrel: a few coloured flecks, no hole
+  const vl = p.vel.length() || 1, n = V(-p.vel.x / vl, -p.vel.y / vl, -p.vel.z / vl);
+  impSpark(p.pos, n, Math.round(4 * (perf.scale < 0.8 ? 0.5 : 1)), def.glow || def.color || 0xffe0a0, 3);
+}
+
 function updateProjectiles(dt) {
   for (let i = burstQ.length - 1; i >= 0; i--) { const q = burstQ[i]; q.t -= dt; if (q.t <= 0) { burstQ.splice(i, 1); spawnProjectile(q.w, q.o, q.d, q.owner, 0, true); } }
   for (let i = stuckBolts.length - 1; i >= 0; i--) { const b = stuckBolts[i]; b.t -= dt; if (b.t <= 0) { scene.remove(b.mesh); stuckBolts.splice(i, 1); } }
@@ -2910,6 +3028,7 @@ function updateProjectiles(dt) {
         if (hit === 'me') { damageMe(def.dmg, p.owner, p.vel, def.knock); if (def.freeze) freezeMe(def.freeze, def.msg); if (def.slowT || def.pull) hitPerksMe(def, remote.pos); }
         else if (hit === 'them') { remote.sq.flash = 1; sfx('hit', 0.6); if (mode === 'bot') { botDamage(def.dmg, p.vel, def.freeze || 0, def.knock); botPerks(def, me.pos); } }
         if (hit) fx(p.pos, p.kind === 'ice' ? (def.fxc || 0xbff4ff) : (def.glow || 0xffffff), 0.05, p.kind === 'ice' ? 0.55 : 0.25, p.kind === 'ice' ? 0.3 : 0.12, 1);
+        try { if (hit === 'world') impactAt(p, def, dt / steps); else if (hit) impFleck(p, def); } catch (e) { if (!window.__impWarned) { window.__impWarned = 1; console.warn('impact effect failed', e); } }   // eye candy must never stop the game
       }
       if (p.kind === 'bolt' && hit === 'world' && stuckBolts.length < 14) { p.mesh.position.copy(p.pos).addScaledVector(p.vel, 0.01); stuckBolts.push({ mesh: p.mesh, t: 5 }); projs.splice(i, 1); continue; }
       scene.remove(p.mesh); projs.splice(i, 1);
@@ -4644,7 +4763,7 @@ const FPL = (() => {
     return out;
   }
   const clearCache = () => { for (const k in handCache) delete handCache[k]; for (const k in autoDone) delete autoDone[k]; };
-  return { clearCache, regHold, layout, m2q, handGeom, armPose, armColors, armIndex, NR, NS, rotM, mv, CLS, CLS_OF, GRIPS, KITS, FREE, vmTan, gripFrame, profile, MAGH, MAGS, RL_POSE, reloadHand, THROW, throwPose };
+  return { WPOSE, H: { Hd, pistolGrip, RGRIP, UNDER, LSIDE, SIDE, CUP }, clearCache, regHold, layout, m2q, handGeom, armPose, armColors, armIndex, NR, NS, rotM, mv, CLS, CLS_OF, GRIPS, KITS, FREE, vmTan, gripFrame, profile, MAGH, MAGS, RL_POSE, reloadHand, THROW, throwPose };
 })();
 
 // First-person viewmodel: your weapon (or your fists) in front of the camera.
@@ -4893,9 +5012,82 @@ const ARS_X_DEFS = {
     ARSENALS[id] = { id, name: INFO[id].name, icon: INFO[id].icon, note: INFO[id].note, defs: D, spec: X.spec, tip: X.tip.map(t => V(t[0], t[1], t[2])), vis: X.vis, ps: X.ps, rx: GUN_RX.slice(), ladder: LADDER.slice(), cuts: ARS_CUTS.slice(), eject: INFO[id].eject, reach: INFO[id].reach };
   });
 })();
+/* ---- v42f: where the hands go on each Western and Space weapon ----
+   The Classic hand tables were drawn for the Classic guns, so the new models (a different handle, a different fore-end) got hands floating beside them.
+   Every number below was measured off the model itself (gun space: +z to the muzzle, +y up, +x the shooter's LEFT).
+   cls: how the gun sits on screen, ref: the Classic gun whose place on the body this one copies (third person), wp: a size / place that differs from the class,
+   R / L: the first-person grips, tpL: where the third-person left hand goes (the palm, when the first-person grip is given by the fore-end's centre).
+   A slot left out (null) keeps the Classic hold. */
+const ARS_HOLD = (() => {
+  const { Hd, pistolGrip, RGRIP, CUP } = FPL.H;
+  const pist = (c, th, hu, hv) => RGRIP(c, th, hu, hv, { dev: [0.08, 0.1] });
+  const wrapL = (c, th, hu, hv) => ({ h: pistolGrip([c[0] + 0.004, c[1] - 0.02, c[2] + 0.025], th, hu * 1.5, hv * 1.35), f: [-0.36, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52, dev: [0.05, 0.1] });
+  const hand2 = (c, th, hu, hv, tpL, wp) => ({ cls: 'pistol', ref: 0, wp, R: pist(c, th, hu, hv), L: wrapL(c, th, hu, hv), tpL });      // a pistol held in both hands, the left wrapped round the right
+  const upL = { f: [0.2, 0, 1], b: [1, -0.1, -0.2], y: 0.55 };                                                                       // the left hand round an upright grip
+  const ball = (c, r, f, b, wrap) => ({ h: Hd(c, [0, 1, 0], [1, 0, 0], r, r, r), f, b, y: 0.5, wrap });
+  const rifle = (cls, ref, R, L, tpL, wp, refL) => ({ cls, ref, wp, R, L, tpL, refL });
+  return {
+    western: [
+      hand2([0, -0.085, -0.015], 0.35, 0.022, 0.029, [0.02, -0.125, -0.01]),                                                                   // 0 Peacemaker
+      hand2([0, -0.08, 0.04], 0.5, 0.023, 0.03, [0.02, -0.115, 0.05]),                                                                          // 1 Pepperbox
+      hand2([0, -0.115, -0.03], 0.55, 0.028, 0.033, [0.02, -0.165, 0], { s: 0.85 }),                                                           // 2 Hand Cannon: a big revolver, two hands, no longer up on the shoulder
+      { cls: 'knife', ref: 3, R: { h: Hd([0, 0, 0.025], [0, 0, 1], [1, 0, 0], 0.017, 0.02), f: [1, 0, 0], b: [0, -1, 0], y: 0.55 } },        // 3 Tomahawk: the hand on the handle, rolled a quarter turn so the face of the blade shows (it was edge-on and looked like a stick)
+      { cls: 'sword', ref: 4, R: { h: Hd([0, 0, -0.005], [0, 0, 1], [1, 0, 0], 0.019, 0.022), f: [-0.1, -1, 0], b: [-1, 0.1, 0], y: 0.55 } },  // 4 Cavalry Saber: a short one-handed hilt
+      rifle('rifle', 5, RGRIP([0, -0.085, 0.185], 0, 0.02, 0.022, { dev: [0.3, 0.1] }), RGRIP([0, -0.085, 0.07], 0, 0.015, 0.018, upL), null, { p: [0.12, -0.11, -0.7], s: 0.7, rx: 0.1 }, true),       // 5 Frontier Bow: one hand on the grip, one on the string
+      { cls: 'thrown', ref: 6, R: ball([0, 0.085, 0], 0.03, [-1, 0, 0.5], [-0.5, 0, -1], 2.6) },                                               // 6 Whiskey Bomb: held by the neck
+      rifle('rifle', 7, RGRIP([0, -0.105, -0.115], 0.9, 0.02, 0.026), CUP([0, -0.02, 0.3], 0.045, 0.055), [0, -0.075, 0.3]),                   // 7 Steam Gun: the swept-back grip, the left hand under the boiler
+      rifle('rifle', 8, RGRIP([0, 0, 0.025], 0, 0.024, 0.02, { dev: [0.3, 0.1] }), RGRIP([0, 0, 0.185], 0, 0.022, 0.02, upL), null, { p: [0.12, -0.06, -0.41], s: 0.68 }),                 // 8 Lasso: a hand on each side of the loop
+      rifle('rifle', 9, RGRIP([0, -0.035, -0.09], 0.7, 0.02, 0.026), CUP([0, 0.045, 0.4], 0.022, 0.022), [0, 0.02, 0.4], { p: [0.12, -0.12, -0.41] }),                      // 9 Lever Carbine: the wrist behind the lever, the left hand under the magazine tube
+      rifle('heavy', 10, RGRIP([0, -0.04, -0.08], 0.5, 0.02, 0.026), CUP([0, -0.04, 0.17], 0.022, 0.022), [0, -0.062, 0.17], { p: [0.13, -0.115, -0.42], s: 0.85 }),    // 10 Buffalo Rifle
+      rifle('heavy', 11, RGRIP([0, -0.055, -0.235], 0.9, 0.02, 0.024), CUP([0, 0.005, 0.22], 0.032, 0.03), [0, -0.025, 0.22], { p: [0.13, -0.115, -0.42], s: 0.85 }),                 // 11 Gatling Gun: the wrist of the stock, the left hand under the barrels
+      rifle('rifle', 12, RGRIP([0, -0.085, -0.045], 0.3, 0.018, 0.026), CUP([0, -0.05, 0.27], 0.02, 0.027), [0, -0.075, 0.27], { p: [0.12, -0.09, -0.41] }),               // 12 Sheriff's Repeater
+      null,                                                                                                                                 // 13 Pickaxe: the Classic two-hand hold already fits
+      null                                                                                                                                  // 14 Dynamite
+    ],
+    space: [
+      hand2([0, -0.095, -0.03], 0.7, 0.026, 0.027, [0.02, -0.135, -0.04]),                                                                     // 0 Blaster
+      rifle('smg', 1, RGRIP([0, -0.11, 0.035], 0.5, 0.024, 0.026), CUP([0, -0.03, 0.22], 0.06, 0.06), [0, -0.09, 0.22], { p: [0.12, -0.11, -0.45], s: 0.85 }),                      // 1 Tri-Pulse: the little handle, the left hand cradling the pod
+      rifle('heavy', 10, RGRIP([0, -0.13, -0.215], 0.75, 0.025, 0.024), CUP([0, -0.12, 0.05], 0.055, 0.06), [0, -0.18, 0.05], { p: [0.13, -0.115, -0.42], s: 0.62 }),    // 2 Ion Cannon: the strut under the stock, the left hand under the belly
+      null,                                                                                                                                 // 3 Arc Baton
+      null,                                                                                                                                 // 4 Photon Blade
+      rifle('rifle', 5, RGRIP([0, -0.045, 0.2], 0, 0.02, 0.022, { dev: [0.3, 0.1] }), RGRIP([0, -0.045, 0.085], 0, 0.015, 0.018, upL), null, { p: [0.12, -0.11, -0.7], s: 0.7, rx: 0.1 }, true),       // 5 Arc Bow
+      { cls: 'thrown', ref: 6, R: ball([0, -0.04, 0], 0.062, [-1, 0, 0.5], [-0.5, 0, -1], 2.2) },                                           // 6 Gravity Bomb
+      rifle('rifle', 7, RGRIP([0, 0.075, -0.215], 0.5, 0.022, 0.03), CUP([0, -0.12, 0.1], 0.05, 0.045), [0, -0.165, 0.1], { p: [0.12, -0.04, -0.34], s: 0.7, rx: 0.12 }),        // 7 Beam Cutter: the big swept handle, the left hand under the lower tube
+      hand2([0, -0.12, -0.055], 0.2, 0.025, 0.026, [0.02, -0.15, -0.04]),                                                                       // 8 Chrono Ray
+      rifle('rifle', 9, RGRIP([0, -0.07, -0.09], 0.4, 0.02, 0.027), CUP([0, 0.045, 0.46], 0.032, 0.052), [0, -0.007, 0.46], { p: [0.12, -0.15, -0.34], s: 0.7 }),      // 9 Shard Cannon
+      rifle('heavy', 10, RGRIP([0, -0.1, -0.09], 0.4, 0.022, 0.025), CUP([0, 0, 0.25], 0.03, 0.05), [0, -0.05, 0.25], { p: [0.13, -0.145, -0.49], s: 0.7 }),            // 10 Rail Gun
+      rifle('heavy', 11, RGRIP([0, -0.115, -0.145], 0, 0.022, 0.026), CUP([0, -0.03, 0.1], 0.06, 0.075), [0, -0.105, 0.1], { p: [0.13, -0.145, -0.42], s: 0.85 }),                    // 11 Hail Cannon
+      rifle('rifle', 12, RGRIP([0, -0.1, 0.02], 0.4, 0.027, 0.03), CUP([0, -0.01, 0.3], 0.03, 0.045), [0, -0.055, 0.3], { p: [0.12, -0.12, -0.34], s: 0.8 }),                       // 12 Force Rifle: the strut inside the hoop, the left hand under the barrel
+      null,                                                                                                                                 // 13 Gravity Maul
+      { cls: 'thrown', ref: 14, R: { h: Hd([0, -0.025, 0], [0, 1, 0], [1, 0, 0], 0.075, 0.075, 0.04), f: [-1, 0, 0.6], b: [-0.6, 0, -1], y: 0.5, wrap: 2.4 } }   // 14 Nova Charge
+    ]
+  };
+})();
+const ARS_HOLD_C = { grip: GRIP.map(g => g.map(p => p && p.slice())), grips: FPL.GRIPS.slice(), cls: FPL.CLS_OF.slice(), wp: Object.assign({}, FPL.WPOSE), off: GUN_OFF.map(v => v.clone()) };
+FPL.FREE.sword = FPL.FREE.knife;                                              // a one-handed sword keeps its free hand open and relaxed, like the knife's
+function applyArsHold(id) {                                                   // called when the weapon set changes: the hands, the gun's place on the body, and every hand shape drawn so far
+  const T = ARS_HOLD[id], C = ARS_HOLD_C;
+  for (let i = 0; i < GRIP.length; i++) {
+    const e = T && T[i];
+    if (!e) {
+      GRIP[i] = C.grip[i].map(p => p && p.slice()); FPL.GRIPS[i] = C.grips[i]; FPL.CLS_OF[i] = C.cls[i]; GUN_OFF[i].copy(C.off[i]);
+      if (C.wp[i]) FPL.WPOSE[i] = C.wp[i]; else delete FPL.WPOSE[i];
+      continue;
+    }
+    const R = e.R.h.c, L = e.L ? (e.tpL || e.L.h.c) : null, wR = C.grip[e.ref][e.refL ? 1 : 0], o = C.off[e.ref];
+    GRIP[i] = [R.slice(), L ? L.slice() : null];
+    GUN_OFF[i].set(o.x + wR[0] - R[0], o.y + wR[1] - R[1], o.z + wR[2] - R[2]);   // the right hand ends up where it is on the Classic gun of the same kind
+    FPL.GRIPS[i] = e.L ? { R: e.R, L: e.L } : { R: e.R };
+    FPL.CLS_OF[i] = e.cls;
+    if (e.wp) FPL.WPOSE[i] = e.wp; else delete FPL.WPOSE[i];
+  }
+  FPL.clearCache();
+  if (fpArms) { for (const k in fpArms.geos) fpArms.geos[k].dispose(); fpArms.geos = {}; fpArms.warm = fpArms.warm2 = null; for (const p of fpArms.parts) p.key = null; }
+}
+
 function setArsenal(id) {
   const A = ARSENALS[id]; if (!A || id === ARS_ID) return false;
-  ARS_ID = id; GLBG.ars = id;
+  ARS_ID = id; GLBG.ars = id; applyArsHold(id);
   WEAPONS.length = 0; A.defs.forEach(d => WEAPONS.push(d));
   GUN_SPEC.length = 0; A.spec.forEach(g => GUN_SPEC.push(g));
   A.tip.forEach((v, i) => GUN_TIP[i].copy(v));
@@ -4967,7 +5159,7 @@ async function loadGuns() {
     const res = await fetch('guns.pack'); if (!res.ok) throw new Error('HTTP ' + res.status);
     await glbParse(await res.arrayBuffer());
     GLBG.state = 'ready'; glbRefresh();
-  } catch (e) { GLBG.state = 'failed'; console.warn('guns.pack not loaded - using the built-in gun shapes', e); }
+  } catch (e) { GLBG.state = 'failed'; console.warn('guns.pack not loaded - using the built-in gun shapes', e); packWarn('guns.pack'); }
 }
 // ----- extra effects a gun can carry -----
 function slowMe(sec, f, msg) {
