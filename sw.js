@@ -1,8 +1,8 @@
 // Trigger Tails offline helper. Bump VERSION when you upload a new index.html.
-const VERSION = 'trigger-tails-v42f';
+const VERSION = 'trigger-tails-v42h7';
 const PAGE = ['./', './index.html'];
 const ASSETS = [
-  './manifest.webmanifest', './models.pack', './sfx.pack', './sfx2.pack', './guns.pack', './fx.pack', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',
+  './manifest.webmanifest', './models.pack', './sfx.pack', './sfx2.pack', './guns.pack', './fx.pack', './ocean.pack', './humans.pack', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
   'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js',
 ];

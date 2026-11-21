@@ -1554,11 +1554,13 @@ function makeGun(i, lod) {          // lod: a plainer copy for pickups lying aro
 }
 
 /* ---------- Characters ---------- */
-const CHAR_ORDER = ['squirrel', 'kitten', 'llama', 'moose', 'brachio', 'troll', 'samurai', 'dragon'];
+const CHAR_ORDER = ['squirrel', 'kitten', 'llama', 'moose', 'brachio', 'troll', 'samurai', 'dragon', 'cowboy', 'alien', 'wizard', 'robot', 'ronin'];
 const CHAR_INFO = {          // gs = gun size, hr = how wide the hit area is
   squirrel: { name: 'Squirrel', gs: 1.0, hr: 0.42 }, kitten: { name: 'Kitten', gs: 1.0, hr: 0.42 }, llama: { name: 'Llama', gs: 1.35, hr: 0.5 },
   moose: { name: 'Moose', gs: 1.5, hr: 0.55 }, brachio: { name: 'Dino', gs: 1.8, hr: 0.6 }, troll: { name: 'Troll', gs: 1.5, hr: 0.6 },
   samurai: { name: 'Samurai', gs: 1.2, hr: 0.45 }, dragon: { name: 'Dragon', gs: 1.8, hr: 0.65 },
+  cowboy: { name: 'Cowboy', gs: 0.85, hr: 0.45, human: true }, alien: { name: 'Alien', gs: 0.85, hr: 0.45, human: true }, wizard: { name: 'Wizard', gs: 0.85, hr: 0.45, human: true },
+  robot: { name: 'Robot Cop', gs: 0.85, hr: 0.5, human: true }, ronin: { name: 'Ronin', gs: 0.85, hr: 0.45, human: true },
 };
 const MODEL_SIZE = 2;      // how big every character is (1 = the original size)
 CHAR_ORDER.forEach(id => { CHAR_INFO[id].gs *= MODEL_SIZE; CHAR_INFO[id].hr *= MODEL_SIZE; });
@@ -1574,6 +1576,12 @@ const SQ_TEX = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQO
 const SQ_META = {"scale": 3.3, "body": [0.04, -0.015, 0.58, 0.08], "limbs": [{"piv": [0.0, 0.125, 0.075], "ph": 0.0, "k": [0.085, 0.09], "hip": 0.6, "knee": 0.5, "bias": -0.95, "atk": -1.6, "kbias": 0.4}, {"piv": [0.0, 0.05, 0.0], "ph": 3.14159, "k": [0.03, 0.06], "hip": 0.45, "knee": 0.35, "bias": 0.2, "atk": 0.0, "kbias": 0.0}], "hold": [0, 0.4, 0.43], "tagY": 1.4, "hit": 1.2, "bob": 0.1, "cadence": 1.0};
 const TH = { squirrel: "UklGRtoEAABXRUJQVlA4IM4EAABQGACdASqAAIAAPmEwk0ckIyGhJZRqGIAMCWUA1QIKQI7nbSqpWPlDX22/mA83bTWN6d/1VcMyILfiNOfUFI8N/oqaH/qX2CyLrtsvEioD9t46ZTdsb3e/IbfVW8ZhTk23SaMRQ6XviUPhtRiO58QSSQMXuNDAdJCekegGtaELCiAtkgMFxMHx1meehMZColiHc3TyasuKtnfm06auMWgPLEW/WfEjbKJUr/vGvPHgMXOKiUzlPzYE51wXnUAfEimt8reiMniYBXz5gAD++w9g85Echec65CAEYCpPwAqxoBnIcdq9n/F+q5p/S5MfiDQftnVdrd0n8QwJewL0gH9X/+RppjzHyLGjYQQ/c3/Cx0KsnUluSbyn4daCy+f6dNofb0hpMW+GNXcG7N70KpmvzKdGuQpQ5vx5+RbHzvExcl85ib22b5v1KP/7a1r6iNdzjOBOEpwlBw4IJzKZbWrIhc7bCU/5b7CxOCpcaksVBke5q1FKxHm6w0hEfJZ/3tfkzZP9zUgBsMUNaaCvR5EQ0W2N0nxEdz+PJFTUm9OYtp6kw6MUXcMWEv9YEQgs7iOfM9WVQwFuZBjtSB/JM02jw0vGj1Lr+kcXBZTWZGvfMofvwOhW+6rTog/3LAU/on8wHfmSczdYIrtpZxzfAsD5Io0xOMUI3nlK/vvbejfbuW17e43A9oArvCGMDZy/uXS/VXBFRiAoQVRNf0jouUage2dBKevCgdMR7AFXTW4/nvRMQ9W3Soi31cCzSlQM2DYOBuyP7FgQnUGwbqlqm3uvEW9ee/zC47eCd9YKeorpBqeoJfRLsjZHox9g2adTRru/mLvGiy+iu07YtIEs7AujszcXrH3m0PpUyTcApci8kcw19wghIyBRPmOQy4jopeXirH5oIho2HwkazxWmZaZVFXhYPJsJ36jIle3H6D70mplE07faIfCPvkGg9bVtVSsZk98je63Ae4B2zzmC7t8x2TmoAjR+zVfN1vFv849U+1oY5AAx5mdhUP411JPvRaIaazRxzVA0HzRz3VVpgjCvBAqFaLIMaLLZgsvci/jD+1EKjnxE9fJ/3N3AeydWqqAQb9RaaOb2zqwuCzF4R8osW8KzrbXVWb4I/Rm9G4O62qBJ7bqm2+5dEJYSIlKKRJ0Wm1oNcjh/ZRctaeMK8tW7OAmNSc9wuafJVF9fZ81ki5nD5KcPl2f+Ei/6T5KvswtojOOqI8HRelgHwzILyVNomzorEH4qWfxFZX0r2mm+j01/WAjGA2jDyE17lVSxswajl/jArOchOWoKg1TXYJf592D2gJEyXNaSUuXfi+dEPbZQPTG/rW/x5Bx+Bfut/wH/LhvD4c3a0PLGQhLMleQtotjIxe+fZ9fpRQfyy/6eaHIsfP5sQ/dWfS0TcHSmyl5+WdpQ6FG/rAJULReN0L2qTKd5LG9da1h0czb0w+2PBj7d2c07thHB0/u6A/VDZdF1oaY8uN1aswpi13f00oSWKaqejjn4Ql9NzYF097do9yueBOHKjssln1Q2GwsMapnbKLIgE1jJuGCqOW5lDAE6TqFW0V9uEfe0+FzWaoXKFY/yjPSOad0S/v7bZzSde7QT6v8Bv+Lb2eHoU+fl/AaWwSmpxC/+VLYAAAAAAAA=", kitten: "UklGRiAEAABXRUJQVlA4IBQEAAAwGACdASqAAIAAPmEsk0YkIqGhLBYJAIAMCWcA1AzjRTmpvbbkKlnMlOtzd81IrSPI6Dh2CA7t26zCoHcK0icTh2mUx+WzmCptfeCoP4Vu+io8DaiHmqK9rTKXz2exXljJSeOkU6lrP4ZFo0xLx6ivWEQ82Dfw1aC60uIcEq1lUCdBUPDz4CQ+UGMZvu7RO1LPc6657epEg5jUuP9VF/sUEPvdX0dtiuXt0odC8if2rfLSbzIHjwDK8mizeiVAvR1OjIqMkJF2UjYAAP77D2CXvEpni6mIAgt3EkDrz6e5+p0jofSWbXY4xfo4YZ6ofZd3fzs/eEPWGgB3jPpXcINm5ihqGDBcIx8VjDVKS4bfRKLreWmUWmxfkeoX8+rZXviMn5RLz7+aOKJCyWnEVkmVzO7d2RB8NsblHVOjAGpU36to0KYOc4uj8O0jne3ahWn+Ir5fhl9qGLdmqUNzI7UNZEpaw/acxAhty2LK8L8o4pbPerkYyIJc3i01C00S69cVXQfolaq3zFuX93QrUKcxe/LimI3T1DVnEdUmkvdxGV6bW7LxpsW4iC5INBkv+PvzQIIgrLkBBArxFsZcfTSQj+sUsv9MEKlPKSGMBX7WV9LU2q/B6tnHq9citexyCIfeohdOsjZz9FAkinexHlqiHrIxVhiwi1fXyLAhdTRfXlTUWlGt0LLPhPXxHX7MK5AV9fXyERI80vCQJ9Psiyh39ym3ADTnEZq0YjNG0/+utjVc7OKnJszqYSMufpfLa/ARzF2077/PGa9yjr9Jm3lKYI0PxHcmjhsqOOHolQCXD+z5MIGjkcqKH8J0sfyPCMUMuqnwwDbLrqwlyo1YWPQ/5HHTab/cobz7duNTkesb8mNrQPj7xIJNyNiJJLnwoyUZObnozieGSfebCxKgOphFhIJ6coD0H48/25h7Xbf3uTLo56KezIUV1PB4uZ3UkO0Urg1APgfJ017Ul1Ncrv0TeaHr+laQkGUjOOrEtwlPpeuUbrwZ2m70ekQHRHhCnzqzEZbKClnU0MZou8z/b/t0C7z77DiEOzZ4z2luz3NBf4y3ZWgYQvKtIdpLf9nvYc8h6/S+ABvUiKiz7Kya99dMw0p8oAgciQCFmIeILRN5Lh90KuaNDmQyX5MYqIN6UO/gLkBhVZjHa9oefSzMllB4b31a3tMODvdrbkLvowLwTM5I7sj5uXSpiqOBrANy6uIQJL2ocCm36ARSm3yKmU2SdPP/4KLtiP8XJMvlVrrt5kv+astlh7lTQ6IfLpHt6ZjgbFKObeBsk7DlpWuvwfU18f2pFzMqYDL9NWAocb+s8LYdQ+wpnvhwAwGDId9YkgIJYEmwI85f9ydzQ6cTMYbDzYsV2GmNp5tEyCr5AAAAAAAAAAA=", llama: "UklGRvIEAABXRUJQVlA4IOYEAABwGACdASqAAIAAPmEulEekIqIhJBQJ2IAMCWcAVvp8vy0egZzrrGx/cUrO4D6HPp/MTvrlRPo/NbTGZkX909E7Q/9S+wWNkzMzMzMqEpwLRHROdiAdiLNVVUqmMZccanrwNPDgyIFE9ddltEfRFv0F/Dp5iQrxLtr5nNIQXB+SFg9FoS2SqxDnCffo5sjf9QY5d/MCJlUqsuvt0EcYPTNvVMI8m42XKW6Z7cHOD3eVRhAt3CqnI945kIxHOBWc09hbyinj049pEUPhesAA/vqBn8t5zfcn6IwBPTvrX3LcOmI/9WNJzq2O956gL+z+znW4ogA1bgvSJqzxzTj9JPdzA2GnPH/9p1CKMLTf72+n4U/ovk0QXp45PZJIZbL7E4JAKxw/ozPK1TPR3ORXfXh55DjYgsQcGgFQ+kVm64uhVjnN7tIq3/EgdD4+CTdA0atxChfS+/DXOp+l8zOuzYEPHjZQvCcOapFUtGoj10qIIcDu93fvpf3isDYh6ov/42OuyJr5fx++ZaSNhcM+UX1wO2VPKfep04jvV6HByAkHtLkxKaasZQJL5uAn8u/Bn5zKYtEzH6E6ieu812MgTY//SlnaTKzelBLvNccn5Hze3NP5hs8L6jP0aElLV/6otmYbk45ZnBNs1UQFxM1l5Qcvl46vqMPZPLVy/oZ6WdLTZOO1iO9xgnHutqkpHMr3bIBCHF8E3DqgHXFRuyMuyljOX8hBrdSFgoZT1ohvCwZ284C7cIXqolja0PqO2IouPeHDn/AZeJySrlsffF74+4RHGuNUJ/xWFoAcpbOL/4ASkfZbgKmo9RRnWB75IXOCMSwddsxvWr7wjxMaulhvWzaOn5cQk5q6cYVOsJgMSMaw/xFG/naxnMPfuRce5rkfCOu8uKt6GWWWBOvKTMs8fW/C17Nu6dv9/wP/eUPTBDl4Z2DfKb8xn+9m6YVpzGG2HRsfgKwGUPNonGDdgAZhrYhCWFMoiWL6DMVhjDulxFsDrRT96zJmNWMlPVvuLt7sirYX+l495d6UTMefx3g21vXS325skFGmbq9FS62bL7vJUmBmdoA4S5+zNCjmPQ+bis7fFY9xmDM5aJbP4qigj0FDPtmhcA/uPgQdAT2RoKyhdQZ1NtovnTTb4qzmrpVTn26xcNDcTti+XN49KJLi2LIO0Res/JF9buw/oZ1TROXkOnrEecckmqLqNDsS1vC0k5XHXL8L/wqfnzHqHFBZdSZ28MVgIbzAs+WJXnD82NSPyF6/NrRXRVZJg21Y+wTErYsPtwHn1LZ49+Zn+P49mp9Wsbpa67UdFJUFSfHKYDvfShTD2TMB2cya/UtE9eD7RNKfrh14FU25mlQNtLzPB2pI2FB4g1FwO08yLOZHZsAO6JOPj63vJl7KD4wSfOfujoQJcO3bTfeMddQQvzHt4gwKK4zdh5sYA+2koAFfN3JB1imua2gZA+XCdh7z/jnNV5asjvn/sbt2kASRQq/tOJnLnrpcgW46UutE/o1twMYH4YiqDqXtWJjZYq2u+6O0JqusavMkpEtAVd+QdicG2s1LmT+5kDeuv+eh88Ae2RxcaH60myVd4qluqqS9TrQndCLSbjPB+vAhNqiQs2XAlgagah/qVjcL7d1HfSwwkfSNWkHbRnxK1k9IxrlituVpsDZCAAAAAAA=", moose: "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", brachio: "UklGRgIDAABXRUJQVlA4IPYCAACQEQCdASqAAIAAPmEwlkekIyIhJhQIeIAMCWkKFshYQx/B4w9L23PV1kgFfm+JOYbDs45v1E9kjQ69SCxbK5F8gb4OFzo4d+FFvIS8MytSWK6oG+DHXi2keZxpAiWVuhc9gLsuY4RQw7kWafH4CVzw7qd4hNlyw74lPV8+wlkYOfRG+GNraFcw935bTC3UYBfCs3MVAAD+/1k/iw9e0z4gAIv8D8xctDv12rjRQT4/DD5+o7JPVp/m0Ux5pXyTg0P8btCZy9HKkyo8uU9ffnmJsU+OFt1gCAiK987RnGNjy1M2qT6JuYCipVw0jvBmycVPwgrFA2vhMxEGUNZLXi+sXRqZ/H90isEmZG8I52PrFciyJ8zP5Wec7onQY1BDFx7AphvF7HAG+Byr8L7oseE/rzRexLFyd5blOxJ+ESM6ZvxOSwqMcNHdOQqscOX5K4/6zvzov1SHLb/M8uotVOMPpAn7/C4vf30l8Lc1MCsbxZzsOpqcl1A8YIpYCZ+AKOMDw0BojU7xM1/QCLEMjgRFmkx7kq5IqT8tvIgKO3H++eH4QV+/5+5QFST974clCsGoQgHobIuHktRMz57Biq0ofRI5O9cEbMWGnpgKzC9QVPpkNBriul2e8jnxeFGGYW8QcfTB80wP7YY+kmayqvrBv+jnpuC45p1XIYGm5o55pMbaC17OVPTFXij15dZonH3nnoJ2uXUlB9cSa6u1FLT9u3MMCKOVvAGsMvEkMz3XImeSiwkIx1c3iJxfiAIf+4Ae6I0FlJKgeJp/rvOjaYtITDEx05I6mTIOv70qJ+WK1DgNQ8vUaYaHwE258dAEjmP8JwBIMH+aOB0qaYh/kxl2lXi3orV/L7KOqT7v2fgqn7UcT4cthV5WdYujE9UYOHHBov86vwuOnrmAfNTOVxs7tv/NQcJfe+ZtJLYDxlQjgxz+OTfawdP5ffaRIebIwzhcHcnzr+G+IiDfVGj8qPjSzkI5hmrUvqgfCetBljLQfMahiAAAAA==", troll: "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", samurai: "UklGRt4EAABXRUJQVlA4INIEAACQFwCdASqAAIAAPmEwlEckIyIhJZXZEIAMCWcAlstbAk6QxGnuQenPbu87dpxcfkYuOWf3d0Ac/GIj2B/sOGPa73bvwnmB3j+HYoAfmX0JM+D0v7BX65jRDuXMb5otr6QCelIjRHdWnDTH8qNhK4aodHx52D1BkA92L8IcGd1kML0UJusAYNwOAHYOAF4AYJh4BokBRDUhMiTNVx4QACdkgtH9NxTNjqvA5mlNjcChUKmB29AzmKefBsuOFV2XYKJj5bl4AAD++oGcAdwhuA4woAG2m8t9CgtF8vn+/wg2/YfixZk/wqwy3LexysSPH4PdJM0oEVKde5XOHKamXvkwQ4zcScuSBxwrRJ8TGZsXbz7SYql32shw/rNqo6Dz/JMjF93TxzGyB/9SAT4BnqsGfNYiaXY2GMwPtX/lXwa61M1kOb8i5nisWXQVXlWYaEHRlK9Dg2S8XZqgk0ICmEKjSZ1LCbDGRW5b9epTfWuyC1EoSdhMHYCckfKlmU/zXkmyuXE5LZNB7e4ZlG/jy/RnYQdt5rybfzGUpUy5dwbN/5nT2rq2rjg+YNYb8M3HLaGVQTvpykC9I8gie8EtkLQgFf/K7Ll83Sg43vK+hTXKi7lfYLCr1rxMAAKc7ro3qTu74I9aMX2vMaLfBeGBvM+UWZSke/eOADyuq99SXau1It7+UwAIIbWmE6dX+c2mFUSu2XoIqgcRd1ag2GEx6klfhJNGLOUYFBujfOySRQ1KX7B5ztf33Si6KDBwRba2NchjzfpPXp1IwZ9h/ExzRPKdR1QIC+Jov/YUFyRvxp9f+MGU6S01RL8siJK+bO0GPRo3yuYbu77W5wNcRvzfzNu1QqA+9ckd7uSclgahUrrbxjvuBE7jDfJE4Ma87LQlPhuSNVo/R8OOwfP32h+syDd82NgpFFwozNPPaG04GL0fHJqVd0quhOjhPxTnsv9uMWcc7v1f7o8s3+xCmHPqk/f4rzrUlu6JdM83Ie4omZF/Nj6hj0Vf8yckPBHBs7h9w5QqotqAUafodr00/UgZVj4lLr7409iSTyDjCN43ZtSSNbT3/ddjqVH+dbXunihaY6MahNo36HIXKKNY9/DAwlgzIsJHFBeAS5qdSZrAkl7TNN2eoMV9a8C/jSYNGRUfpEP2+T9eK+usqhK9F7OEAtB0/kaI5HCjWNf4EXWt2jzlIaDhRChjh1khhJcHHUR9BGxinv32XeQJ14HLfBwGRDmFUinI6e4BKgh9/zGqr59ItYbofqg9HJeVRFfFf1X+aQn5VrmqNXn75aWe+4CD62AvRfesvYnTWbMC193aDvYsPgOZJLo96JJY4HXTXM9x9iGdqSd1Sq1ya6ovUBHyv5JsKol8I5pimvRHG++yEZutisav9As1X/b69+DR1hdtTKPNAY9b0ioGtJAHqwsmPOFKreEHlAOmRHoZbxr3xXzeHO1HRLDVl/OIqHzac4jwIDfhquYLL2nBtwiALxxLoR3+SP/k8qlgSrMpkAMlMBUQxma19B0H8wy1O9IQay7dI/uxkcujlZ3ifnElVZ4D1mJ4NzNs7CfamXTjI553rnlNd32Jxh0EaJscQqShyHqs/eSbPn/jPF+PQ1vhJA2xE2QoK8fM9LzTMaz1boszkAAAAAAA", dragon: "UklGRtAFAABXRUJQVlA4IMQFAAAQHQCdASqAAIAAPm0ylUgkIqIhJpTp4IANiWcA1tg10QUwnNfpi2+fPHacVQAHYj/kvCfxcezfa3lWxGvjv22/XcVu1zu8mUO+s1MvAGtzeVewB/Kv7H6rP97/4fLj9Iewb+sf/T4GwnqCAiXUEA4AK8R/BGfjLkashjXBtNvT4DWXodzZN+g76+gY2vFf26y56X0ZWSAJCKNM91LVZlZHvmgn3Y2crcXrVGSJDMMTDSa3rHN/eF/iBQBoSus5hPJmxUtgWU4OszFh3NJoVYWFxRQyUFz8uOi9O/ZT1RLsIqwVbqcJ5ZSEHGH5CkM04vIAAP76gZ9hdJfncSsAAEBzRygAh6mdIOEWGPo9QPJ/p1iJDhkVBlFKW38Sth+uAJ96LQp7aGks5wIXGcKPwM/dcV7qfO5IAh4Omgp2TTUMHR5b46pORrsumg+vh2Z/zOEvVg9P2mTBbYBbGO+dAtdIgyHaTwhGDzYm1BwfkvbSuYO+jLqgGf1IbwnIFyPs1fR/NEnOaO0Kwxj++NlAsbU/Kh2rKD8gqdfDLNHJ6LODs5dy/f4WX2Vlh1CfEkf6TgHMypDzVDzuspJfKmF3KeoFXl4U/atILYxfyG54DzCDEEWSMem/L/ki5DaP4d09TOD+WR7crnGHmz7NqxzSIY+ajJe4Fa+hDMrfRpzqNadVptY+81za4y3u2BunVm94hRO8qWjsV+372oeXH+g2IwyvMobsxnFW4thq48kt/4WOHfTPSBBL7dNhtxEW+6e9XO0Bg4DYigjl1Ulml3UYXebpEkzqfX3lL5JjgiY6HNGKoEP44uVcElP/hxDH7u/4KMUQDkvFhyo00KaZXtRMrinobr10Nkhdpb/Avxv6biBRjq8cKOLolxgkWvCEIvGW7/khfQ2+Q9jcB3J8UnRsAojOlsJIE4aXR+GkvqV3Ubi127/oA1HHhBvP9f1JI6Yj+i1yHrGIH0NxX1RqzWJ8Tl5NDLeG8nsiegIv/8q8onnvD3vRfivfVN3fuJTc1oyNtUJ2KSsT+zbqfq7byr9dFckKmHK4Y34WjCuk5/7C9v0fSW7BaIRFCZ/3Db5kUPL0AK2UdlJpKqbXrrehg0yr/1BVvqXKWhCa03LD/IE4dLnLhaqDxHmdV4fgScIqjDz0Gf98Wfz+pIYuoy2u/G3IDaWqawKO3ONfdf5tRxIAXEB2RYHsk4y8ZIJORfGj9gf535vfCoKWbHxoeFeIDfLn8o18X6y0mUeUScPdQkNOHXex+Zxqjdozys50tDT91Bynwn7tEKcgbHIsVc4scP/mg6Qm+K/xbGrx735OnmNB/HmOsPCHYzV3yzcv020cCyu52X7UQ6BPRFIm15uww3ZF0LpUry2OoSZtjzm7f66WvmVPO6bPbxPO0TGmSyx9pbF+TKfWCky3eJ/Yr69wv8qLC8i6bdanaQdVFPemZkAgli//X3JGPufgu6xEuP/QFdP6E34GcELoXOZ49YvF65il9gUDEu7zztTDeomSA4I2f38bf+z//uptH+yrm2jy7epqbhZbFojND0cjRd9bRDfj+yL9Kp68uNzr3/3alFZqW70v/ymSnIJ8503szCoMeU8zsqyDBKahySFiUWKocEULwjoo+//fI/Fpp3mY39C4MIkVWw3g3m0zBRooHxwqMqWYUr/9LD92N9/lRxkJg+6yYa/LsLw00tTcD4xXR6DfuL7Larijr6AbIhxqby5b6FqAW+Kp05lA0CaY9bXuo88cayYu3/GZeC9qL9klk2La/WzVpBcR9/T2VfkAJ9fzYqBk93xlrxmpaEv+GUn/+66A9ttniFzV9W1dAwcAFZ6B1wWHXrTvDh2VSQKBLVzn16QCFeWEU4nhKAkIIo/sCyv/XGv8YK0Q0L2p+lyqlMbOp83NzU/MDoBcIllMJscCkGBoUWkO/fwNtbCGO5XgVtD6eeVx+Gfyu77zm9aBO+mjgcd9qAAAAAA=" };
 const setMeta = (d, m) => { d.meta = sizeMeta(m); };
+TH.cowboy = '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';
+TH.alien = 'UklGRvgDAABXRUJQVlA4IOwDAACwFACdASqAAIAAPmEwlEekIyIhJRTZWIAMCWcAhWHM91Vgd6Wv936c3R1W9DnHD7pU395XbB/jc8GrCR+qHk8/GANLPs/AYKjvyqBPPqjEr3tBuXfyB57aMT3b4THQY7f7Y8Eute/7t7+p+CPunzb8k0sIN1msKk/U2nNZnGCImr6Xu+iMjFVagRAqDiOUBqm0QG21CAo8MdxVYejhFJbTwmqlQiAKlyvHa6qs4AAA/vpxGUH7fuQQ6xRLokZDFt3iR7A8Ifxo8C+7fDvet7ZBPRL+wT2p3TtYmHyD8gI4kibcgIHDAQIMHUZUCzJIgAAXb5X93nYPuCb86jc15vf1UqG4m6xXjsxRzgJzhNR7CBvOEzAjwbFaaWWfyqsC+eSlDTL4tV/sisuZwOUItyfzcuT6thcNMIwgrCXgiaa7+5pk9IzGIghf7NPXuxLlizqRfvcdL39qVt1bvB4eam98qTrh05sfznjH6yADW8d3TGGxSOzKr4YYhuPEUyvzZmT7f8LZ/l3QVpuy5vo/MU9Pv0JcxXOUdBeLWxzLt5MnM+xRfCBpOld4w1G265uEpXpc1Aa+Ta1auyA4Bcr0i0lrNZ8aQSaThib+UO/F0jA1FERlPMw8P3hidaeWRPASvgLAVIAgsDTjX8uVgTAfT26nNbsZXfBk5iqb21gLauH3qCsWKkwK3xeCwfZav2uxg2iU/GW8ZodecqcfpAoW0s1aig0fwQHYVUAE8s+LZjnNPtZHRXi749vklQ9DBfSwWwcFZA1rd8bWn3rzbiv76G05PRZOC/mQpwZx4ujLniWc4eAFnPdrPpyqv3Bq8iT0G8JDMHurfc0jeQpS8DhjMxmMHm6jMR7zIcLeeoek1eifXGomgz9JeCf6o/hvHNdC0uI/G16W1yGK8SKK5+tzGhFSN6+H3Zhy3lQixgNhZ75MA4oLcEn8vzVqvWofc3qc5yc5H2r9mqKeB89a7PkAuzM5rEn0QHgATjkDSxQ5rHp86pc/C0RGoyceT1+cvjYPBf2kq47ek3Ju3PgMKlRlP31MQi7cS6NkSW8jKeUZYac6y3BkeA17K4SjLSDUjabsEsFF/+PvsKge0i7uC3jElp6iEZJ2h363smqOI3ZVyxABrDLTaLgAwJhxwEWQCyEKkONrfmrLvIyKkiM2BkTX3405yL5bJdIgOGXOz/HeSHaT+CJOn5uRzzx2i8Xwzp3sEdGOrFGg3maX+jaABZVHNVWUgaOUMzEqqCFEo+ZbHKd1l7KzKgwEOPtNM6N+NTH3BTigpV41SMNgdpsAysQLN/XEm5d4B4c2isElp0fcid6+xvaxXCELbPsGEAAAAA==';
+TH.wizard = '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';
+TH.robot = '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';
+TH.ronin = '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';
+
 
 // Meshes are stored compactly (see models.pack): 16-bit positions, 8-bit normals, and per-vertex leg weights.
 function geoFromBin(buf, base, len) {
@@ -1871,6 +1879,7 @@ function updateStance(s, dt) {              // standing up on the hind legs whil
   s.U.uStance.value.set(A.angMax > 0 && A.st > 0 ? 1 : 0, A.hip[0], A.hip[1], A.ang);
 }
 function updateArms(s) {
+  if (s.hum) return;
   const A = s.arms, g = s.gunNode, w = s.weapon, G = GRIP[w], U = s.U;
   if (!A) return;
   if (!g || !G) { U.uArm.value.set(0, 0, 0, 0); return; }
@@ -1905,7 +1914,253 @@ function updateArms(s) {
   U.uArm.value.set(Math.min(1, A.st * 4), A.pair ? on[0] || on[1] : on[0], A.pair ? 0 : on[1], A.pair ? 1 : 0);
 }
 
+/* ---------- v42h: real skinned human characters (humans.pack) ----------
+   Each human is a real skeleton with shoulders, elbows and wrists. The pose is built every frame in model space ("forward kinematics"):
+     1. body, legs and head are set from the walk cycle,  2. the arms are bent by two-bone IK so each hand reaches its grip on the gun, and the fingers close round it.
+   A bone is posed by giving its wanted orientation in model space (HUM.dq[i], applied on top of its rest orientation); the bones that are not posed follow their parent. */
+const HUMX = { state: 'idle', hdr: null, buf: null, base: 0 };
+const HUM_PACK_ID = { ronin: 'samurai' };            // game id -> name in humans.pack
+const HUM_META = {                                    // before MODEL_SIZE: scale (the pack is 1.8 m tall), hold = where the gun is carried [sideways, up, forward]
+  cowboy: { scale: 0.92, hold: [-0.1, 1.2, 0.46], tagY: 1.98, hit: 1.35, bob: 0.045, cadence: 1.0 },
+  alien:  { shX: 1.25, shTop: -0.02, scale: 0.92, hold: [-0.1, 1.2, 0.46], tagY: 1.98, hit: 1.35, bob: 0.05, cadence: 1.05 },
+  wizard: { scale: 0.92, hold: [-0.1, 1.2, 0.46], tagY: 2.05, hit: 1.35, bob: 0.04, cadence: 0.9 },
+  robot:  { scale: 0.92, hold: [-0.1, 1.2, 0.46], tagY: 1.98, hit: 1.35, bob: 0.04, cadence: 0.95, padLift: 0.12, shTop: 0.16 },
+  ronin:  { scale: 0.92, hold: [-0.1, 1.2, 0.46], tagY: 1.98, hit: 1.35, bob: 0.045, cadence: 1.0, twist: 0.569, padLift: 0.2, shTop: 0.18 }       // twist: this model's torso is turned 33 degrees against its hips in the rest pose
+};
+async function loadHumans() {
+  HUMX.state = 'loading';
+  try {
+    const res = await fetch('humans.pack'); if (!res.ok) throw new Error('HTTP ' + res.status);
+    const buf = await res.arrayBuffer(), dv = new DataView(buf);
+    if (dv.getUint32(0, true) !== 0x4d485454) throw new Error('humans.pack: bad header');
+    const hl = dv.getUint32(4, true), hdr = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, hl)));
+    HUMX.buf = buf; HUMX.base = 8 + hl; HUMX.hdr = hdr; HUMX.state = 'ready';
+    CH.forEach(d => { if (d.human && hdr.chars[HUM_PACK_ID[d.id] || d.id]) d.ref = { human: true }; });
+    refreshCharGrid(); CH.forEach((d, i) => { if (d.human && d.ref && (i === me.wantChar || me.wantChar === undefined)) ensureChar(i); });
+  } catch (e) { HUMX.state = 'failed'; console.warn('humans.pack not loaded', e); packWarn('humans.pack'); }
+}
+function humEnsure(d) {
+  if (d.ready || d.loading || HUMX.state !== 'ready' || !d.ref) return;
+  d.loading = true;
+  safe('load ' + d.id, () => {
+    const I = HUMX.hdr.chars[HUM_PACK_ID[d.id] || d.id], base = HUMX.base + I.base, buf = HUMX.buf;
+    const sl = (e, T) => new T(buf.slice(base + e[0], base + e[0] + e[1]));
+    const parts = I.parts.map(p => {
+      const q = sl(p.pos, Uint16Array), nV = p.nV, P = new Float32Array(nV * 3), bb0 = p.bb[0], sz = p.bb[1];
+      for (let v = 0; v < nV; v++) for (let k = 0; k < 3; k++) P[v * 3 + k] = bb0[k] + q[v * 3 + k] / 65535 * sz[k];
+      const nq = sl(p.nor, Int8Array), N = new Float32Array(nV * 3); for (let v = 0; v < nV; v++) { N[v * 3] = nq[v * 4] / 127; N[v * 3 + 1] = nq[v * 4 + 1] / 127; N[v * 3 + 2] = nq[v * 4 + 2] / 127; }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(P, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(N, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(sl(p.uv, Float32Array), 2));
+      geo.setAttribute('skinIndex', new THREE.BufferAttribute(sl(p.j, Uint8Array), 4)); geo.setAttribute('skinWeight', new THREE.BufferAttribute(sl(p.w, Uint8Array), 4, true));
+      geo.setIndex(new THREE.BufferAttribute(p.i32 ? sl(p.idx, Uint32Array) : sl(p.idx, Uint16Array), 1));
+      geo.boundingSphere = new THREE.Sphere(V(0, 0.9, 0), 3); return { geo, mat: p.mat };
+    });
+    const waits = [];
+    const mats = I.mats.map(m => {
+      const o = { color: m.color, alpha: m.alpha, mode: m.mode, ds: m.ds, tex: null };
+      if (m.tex) {
+        const img = new Image(), t = new THREE.Texture(img); t.flipY = false; t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy()); o.tex = t;
+        waits.push(new Promise(res => { img.onload = () => { t.needsUpdate = true; res(); }; img.onerror = () => res(); }));
+        img.src = URL.createObjectURL(new Blob([new Uint8Array(buf, base + m.tex[0], m.tex[1])], { type: m.tt === 'webp' ? 'image/webp' : 'image/jpeg' }));
+      }
+      return o;
+    });
+    const M = HUM_META[d.id] || HUM_META.cowboy; d.meta = sizeMeta(M); d.hum = { info: I, parts, mats };
+    Promise.all(waits).then(() => { d.ready = true; d.loading = false; refreshCharGrid(); });
+  });
+}
+const _hQ = new THREE.Quaternion(), _hQ2 = new THREE.Quaternion(), _hV = new THREE.Vector3(), _hV2 = new THREE.Vector3(), _hV3 = new THREE.Vector3(), _hV4 = new THREE.Vector3(), _hM = new THREE.Matrix4(), _hX = new THREE.Vector3(1, 0, 0);
+const _hF = new THREE.Vector3(), _hN = new THREE.Vector3(), _hB1 = new THREE.Matrix4(), _hB2 = new THREE.Matrix4(), _hCu = new THREE.Vector3(), _hAx = new THREE.Vector3();
+function humActor(ci, slot) {
+  const d = CH[ci], M = d.meta, H = d.hum, I = H.info, nb = I.bones.length;
+  const root = new THREE.Group(), rig = new THREE.Group(), model = new THREE.Group(); root.add(rig); rig.add(model);
+  // the skeleton, in model space and with the model not yet moved, so its inverse bind matrices are plain rest-pose inverses
+  const B = [], skelRoot = new THREE.Group();
+  for (let i = 0; i < nb; i++) { const b = new THREE.Bone(); b.name = I.bones[i].n; b.position.fromArray(I.bones[i].t); b.quaternion.fromArray(I.bones[i].q); B.push(b); }
+  for (let i = 0; i < nb; i++) (I.bones[i].p >= 0 ? B[I.bones[i].p] : skelRoot).add(B[i]);
+  skelRoot.updateMatrixWorld(true);
+  const skel = new THREE.Skeleton(B);
+  const tintMats = [], depthMats = [];
+  H.parts.forEach(pt => {
+    const m = H.mats[pt.mat], mat = new THREE.MeshLambertMaterial({ map: m.tex, color: new THREE.Color(m.color[0], m.color[1], m.color[2]), skinning: true, side: m.ds ? THREE.DoubleSide : THREE.FrontSide, transparent: m.mode === 'BLEND', alphaTest: m.mode === 'MASK' ? 0.5 : 0, opacity: m.mode === 'BLEND' ? m.alpha : 1 });
+    const dmat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, skinning: true }); depthMats.push(dmat);
+    const mesh = new THREE.SkinnedMesh(pt.geo, mat); mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = false; mesh.customDepthMaterial = dmat;
+    model.add(mesh); mesh.bind(skel, new THREE.Matrix4()); tintMats.push(mat);
+  });
+  model.add(skelRoot);                                       // (the scale is applied after the rest pose is read, so every bone length below is in model units)
+  const rq = [], rp = [], lq = [], lt = [], par = I.bones.map(b => b.p), order = [], seen = new Array(nb).fill(false);
+  for (let i = 0; i < nb; i++) { rq.push(B[i].getWorldQuaternion(new THREE.Quaternion())); rp.push(B[i].getWorldPosition(new THREE.Vector3())); lq.push(B[i].quaternion.clone()); lt.push(B[i].position.clone()); }
+  const visit = i => { if (seen[i]) return; seen[i] = true; if (par[i] >= 0) visit(par[i]); order.push(i); }; for (let i = 0; i < nb; i++) visit(i);
+  const R = I.roles, hd = {}, arm = {};
+  for (const sd of ['L', 'R']) {
+    const S = R[sd], hh = I.hands[sd], v3 = a => new THREE.Vector3(a[0], a[1], a[2]);
+    arm[sd] = { up: S.up, lo: S.lo, hand: S.hand, L1: rp[S.lo].distanceTo(rp[S.up]), L2: rp[S.hand].distanceTo(rp[S.lo]), r1: rp[S.lo].clone().sub(rp[S.up]).normalize(), r2: rp[S.hand].clone().sub(rp[S.lo]).normalize(), fing: S.fing };
+    const dd = v3(hh.d), nn = v3(hh.n); nn.addScaledVector(dd, -nn.dot(dd)).normalize();
+    hd[sd] = { d: dd, n: nn, palm: hh.palm, len: hh.len, ax: Object.fromEntries(Object.entries(hh.ax).map(([k, a]) => [k, v3(a)])), rest: new THREE.Matrix4().makeBasis(dd, nn, new THREE.Vector3().crossVectors(dd, nn)) };
+  }
+  const h = { I, B, nb, par, order, rq, rp, lq, lt, dq: rq.map(q => q.clone()), has: new Uint8Array(nb), cq: rq.map(q => q.clone()), cp: rp.map(p => p.clone()), arm, hd, R, hips: R.hips, hipOff: new THREE.Vector3(), miss: { L: 0, R: 0 }, curl: { L: 0, R: 0 }, S: M.scale };
+  model.scale.setScalar(M.scale);
+  if (!d.gs0) d.gs0 = d.gs; d.gs = d.gs0 * Math.max(0.72, Math.min(1, (arm.R.L1 + arm.R.L2) / 0.62));      // short arms get smaller guns so both hands still reach
+  const gs = d.gs, hold = V(M.hold[0], M.hold[1], M.hold[2]);
+  const guns = new Array(NW).fill(null);
+  const tag = makeTag(slot === 1 ? 'P1' : 'P2', slot === 1 ? '#c85a26' : '#6b7280');
+  tag.sprite.position.y = M.tagY; tag.sprite.scale.set(0.8 * (1 + (MODEL_SIZE - 1) * 0.5), 0.6 * (1 + (MODEL_SIZE - 1) * 0.5), 1); root.add(tag.sprite);
+  root.visible = false; scene.add(root);
+  return { ci, slot, def: d, root, rig, model, U: null, hum: h, guns, gunNode: null, holdV: hold, tag, arms: null, tintMats, phase: 0, sp: 0, flare: 0, yaw: 0, flash: 0, weapon: -1, recoil: 0, look: 0, atk: 0, ice: 0, iceT: 0, burnV: 0, burnT: 0, rl: null, rlK: 0, since: 9, spinV: 0, mfT: 0, unl: false };
+}
+// ---- forward kinematics: parents first, every posed bone gets its wanted model-space orientation ----
+function humFK(h) {
+  const B = h.B, par = h.par, order = h.order, cq = h.cq, cp = h.cp, has = h.has, dq = h.dq, lq = h.lq, lt = h.lt;
+  for (let n = 0; n < order.length; n++) {
+    const i = order[n], p = par[i], b = B[i];
+    if (p < 0) { cq[i].copy(has[i] ? dq[i] : lq[i]); cp[i].copy(lt[i]); b.quaternion.copy(cq[i]); b.position.copy(lt[i]); continue; }
+    if (has[i]) { _hQ.copy(cq[p]).invert().multiply(dq[i]); b.quaternion.copy(_hQ); } else b.quaternion.copy(lq[i]);
+    cq[i].copy(cq[p]).multiply(b.quaternion);
+    if (i === h.hips) { _hV.copy(lt[i]).add(_hV2.copy(h.hipOff).applyQuaternion(_hQ2.copy(cq[p]).invert())); b.position.copy(_hV); } else b.position.copy(lt[i]);
+    cp[i].copy(b.position).applyQuaternion(cq[p]).add(cp[p]);
+  }
+}
+const humRot = (h, i, axis, ang) => { if (i === null || i === undefined) return; h.dq[i].setFromAxisAngle(axis, ang).multiply(h.rq[i]); h.has[i] = 1; };
+const humRest = (h, i) => { if (i === null || i === undefined) return; h.dq[i].copy(h.rq[i]); h.has[i] = 1; };
+const _hY = new THREE.Vector3(0, 1, 0), _k1 = new THREE.Vector3(), _k2 = new THREE.Vector3(), _k3 = new THREE.Vector3(), _k4 = new THREE.Vector3(), _k5 = new THREE.Vector3();
+function humArmIK(h, sd, T, pole, f, b, curl, thumbK) {          // T = wrist target, pole = which way the elbow bends out, f / b = the hand's finger direction and back-of-hand direction (all model space)
+  const A = h.arm[sd], S = h.cp[A.up], Eo = _k3, d = _k1.copy(T).sub(S); let D = d.length() || 1e-4;
+  const tot = A.L1 + A.L2, Dm = Math.min(D, tot * 0.999); h.miss[sd] = Math.max(0, D - tot); d.multiplyScalar(1 / D); D = Dm;
+  const a = (A.L1 * A.L1 - A.L2 * A.L2 + D * D) / (2 * D), hh = Math.sqrt(Math.max(0, A.L1 * A.L1 - a * a));
+  const pr = _k2.copy(pole); pr.addScaledVector(d, -pr.dot(d)); if (pr.lengthSq() < 1e-6) pr.set(0, -1, 0); pr.normalize();
+  Eo.copy(S).addScaledVector(d, a).addScaledVector(pr, hh);
+  const d1 = _k4.copy(Eo).sub(S).normalize();
+  h.dq[A.up].setFromUnitVectors(A.r1, d1).multiply(h.rq[A.up]); h.has[A.up] = 1;
+  const Wr = _k5.copy(S).addScaledVector(d, D), d2 = _k4.copy(Wr).sub(Eo).normalize();
+  h.dq[A.lo].setFromUnitVectors(A.r2, d2).multiply(h.rq[A.lo]); h.has[A.lo] = 1;
+  // the hand: its finger direction goes along f and the palm (the way the fingers curl) faces -b
+  const hr = h.hd[sd]; _hF.copy(f).normalize(); _hN.copy(b).multiplyScalar(-1); _hN.addScaledVector(_hF, -_hN.dot(_hF)).normalize();
+  _hB2.makeBasis(_hF, _hN, _hAx.crossVectors(_hF, _hN)); _hB1.copy(hr.rest).invert(); _hM.multiplyMatrices(_hB2, _hB1);
+  const Rh = _hQ.setFromRotationMatrix(_hM).clone(); h.dq[A.hand].copy(Rh).multiply(h.rq[A.hand]); h.has[A.hand] = 1;
+  // fingers: each joint closes a little more about the finger's own curl axis
+  const F = A.fing, K = [0.95, 1.05, 0.8], TK = [0.5, 0.55, 0.5];
+  for (const nm in F) {
+    const ch = F[nm]; if (!ch) continue; const ax = _hAx.copy(hr.ax[nm]).applyQuaternion(Rh); let cum = 0;
+    const ks = nm === 'thumb' ? TK : K, c = nm === 'index' ? curl * 0.55 : curl, cc = nm === 'thumb' ? curl * (thumbK === undefined ? 1 : thumbK) : c;
+    for (let j = 0; j < 3; j++) { if (ch[j] === null || ch[j] === undefined) continue; cum += ks[j] * cc; h.dq[ch[j]].setFromAxisAngle(ax, cum).multiply(_hQ2.copy(Rh).multiply(h.rq[ch[j]])); h.has[ch[j]] = 1; }
+  }
+  return Wr;
+}
+const _hP = { x: 0, y: 0, z: 0 };
+function humAnimate(s, dt, t, run, air) {
+  const h = s.hum, M = s.def.meta, cad = M.cadence || 1, R = h.R;
+  s.sp += ((air ? Math.max(run, 0.55) : run) - s.sp) * Math.min(1, dt * 14);
+  s.phase += dt * ((2.2 + 9.5 * s.sp) * cad);
+  s.flare += ((air ? 1 : 0) - s.flare) * Math.min(1, dt * 8);
+  const f = s.flare; s.atk = Math.max(0, s.atk - dt * 4.5);
+  const bounce = Math.abs(Math.sin(s.phase)) * M.bob * s.sp * (1 - f);
+  s.rig.position.y = lerp(s.rig.position.y, bounce, Math.min(1, dt * 20));
+  s.rig.rotation.x = lerp(s.rig.rotation.x, air ? -0.1 : 0, Math.min(1, dt * 10));
+  s.model.scale.set(M.scale, M.scale * (1 + Math.sin(t * 2.6) * 0.008 * (1 - s.sp)), M.scale);
+  const armed = s.weapon >= 0 && !!s.gunNode, sp = s.sp, ph = s.phase;
+  // ---- legs ----
+  for (let n = 0; n < h.nb; n++) h.has[n] = 0;
+  const A = (0.18 + 0.52 * sp) * (1 - 0.4 * f), K = 0.2 + 0.85 * sp;
+  for (let k = 0; k < 2; k++) {
+    const S = R[k ? 'L' : 'R'], p = ph + (k ? Math.PI : 0), sw = Math.sin(p) * A * (air ? 0.4 : 1), kn = (sp > 0.02 ? Math.max(0, Math.cos(p)) * K : 0) + (air ? 0.5 * f : 0.05);
+    humRot(h, S.thigh, _hX, -sw); humRot(h, S.calf, _hX, -sw + kn); humRest(h, S.foot); if (S.toe !== null) humRest(h, S.toe);
+  }
+  // ---- body: a little lean into the run, breathing, the head kept level ----
+  const lean = 0.05 + 0.16 * sp + (armed ? 0.02 : 0), br = Math.sin(t * 2.2) * 0.012 * (1 - sp), sy = Math.sin(ph) * 0.05 * sp;
+  const sp3 = R.spine; let cum = 0;
+  for (let j = 0; j < sp3.length; j++) { if (sp3[j] === null || sp3[j] === undefined) continue; cum += (lean + br) / sp3.length; humRot(h, sp3[j], _hX, cum); h.dq[sp3[j]].premultiply(_hQ.setFromAxisAngle(_hY, sy * (j + 1) / sp3.length + (M.twist || 0))); }
+  if (R.neck !== null && R.neck !== undefined) humRest(h, R.neck); if (R.head !== null && R.head !== undefined) { humRot(h, R.head, _hX, -lean * 0.4 + sp * 0.05); }
+  if (M.twist) { if (R.neck !== null && R.neck !== undefined) h.dq[R.neck].premultiply(_hQ.setFromAxisAngle(_hY, M.twist)); if (R.head !== null && R.head !== undefined) h.dq[R.head].premultiply(_hQ.setFromAxisAngle(_hY, M.twist)); }
+  h.hipOff.set(0, 0, 0);
+  humFK(h);
+  // ---- arms ----
+  if (armed) humGunHands(s);
+  else for (const sd of ['L', 'R']) {
+    const side = sd === 'R' ? -1 : 1, A_ = h.arm[sd], S = h.cp[A_.up], sw = Math.sin(ph + (sd === 'R' ? Math.PI : 0)) * (0.05 + 0.3 * sp) * (air ? 0.3 : 1) + (air ? -0.15 * f : 0);
+    _hV4.set(S.x + side * 0.07, S.y - (A_.L1 + A_.L2) * 0.97 + 0.02 * sp, S.z + 0.04 + sw);
+    humArmIK(h, sd, _hV4, _hV3.set(side * 0.4, -0.3, -1), _hV2.set(0, -1, 0.1 + sw), _hV.set(-side * 0.2, 0, 1), 0.28 + 0.2 * sp);
+  }
+  humFK(h);
+  // ---- the rest of animateActor: recoil, melee swing, tints ----
+  if (s.weapon >= 0) {
+    s.recoil = Math.max(0, s.recoil - dt * 6);
+    const g = s.gunNode, wd = WEAPONS[s.weapon];
+    if (g) {
+      const rx = g.userData.rx || 0;
+      if (wd.melee) { g.rotation.x = rx + s.atk * (wd.swing || 1.5); g.position.z = g.userData.z + s.atk * 0.2 * s.def.gs; }
+      else { g.rotation.x = rx - s.recoil * 0.35; g.position.z = g.userData.z - s.recoil * 0.05; weaponAnim(s, dt, wd); }
+    }
+  }
+  s.ice = lerp(s.ice, s.iceT, dt * 8); s.burnV = lerp(s.burnV, s.burnT, dt * 10);
+  if (s.flash > 0 || s._fl || s.ice > 0.01 || s.burnV > 0.01 || s._tint) {
+    s.flash = Math.max(0, s.flash - dt * 4); s._fl = s.flash > 0;
+    const b = s.burnV * (0.35 + 0.15 * Math.sin(t * 30));
+    s.tintMats.forEach(m => m.emissive.setRGB(s.flash * 0.9 + b, s.ice * 0.25 + b * 0.3, s.ice * 0.55));
+    s._tint = s.ice > 0.01 || s.burnV > 0.01;
+  }
+}
+// ---- the hands on the gun: grip frames come from the first-person grip table (FPL.GRIPS), so every arsenal's hold works here too ----
+const HUM_POLE = { R: [-0.55, -1, -0.3], L: [0.55, -1, -0.3] };
+// ---- carrying the gun: the gun is moved (once, when it is picked up) so that the shooting hand's grip sits in front of its shoulder and the other hand can still reach its grip ----
+const _pg = new THREE.Vector3();
+function humPlaceGun(s, g, G, h, S) {
+  g.userData.hs = 1;
+  g.position.z = g.userData.z; g.rotation.x = g.userData.rx || 0;
+  const A = h.arm, SR = h.rp[A.R.up], SL = h.rp[A.L.up], LR = A.R.L1 + A.R.L2, LL = A.L.L1 + A.L.L2;
+  const rg = G.R || G.L; if (!rg) return;
+  const grip = (c, o) => { gunPoint(g, c[0], c[1], c[2], _pg); o.set(_pg.x / S, _pg.y / S, _pg.z / S); return o; };
+  const gr = grip(rg.h.c, _hV);
+  if (G.sh && G.R) {                                                      // a launcher rests ON the right shoulder: the tube lies across the top of it, the rear sticks out behind, the hands hang on the grips under the tube
+    const sh = G.sh; if (sh[3]) { if (g.userData.rx0 === undefined) g.userData.rx0 = g.userData.rx || 0; g.userData.rx = g.userData.rx0 + sh[3]; g.rotation.x = g.userData.rx; }      // the muzzle dips a little: the grips come down to the chest
+    const M0 = HUM_META[s.def.id] || HUM_META.cowboy, a = grip([0, sh[0], sh[1]], _hV3), up = grip([0, sh[0] + sh[2], sh[1]], _hV4), rT = up.y - a.y;
+    const tx = SR.x * (M0.shX || 0.82), ty = SR.y + (M0.shTop === undefined ? 0.04 : M0.shTop) + rT, tz = SR.z + 0.03;
+    g.position.x += (tx - a.x) * S; g.position.y += (ty - a.y) * S; g.userData.z += (tz - a.z) * S; g.position.z = g.userData.z;
+    return;
+  }
+  const side = G.R ? -1 : 1, SH = side < 0 ? SR : SL, LH = side < 0 ? LR : LL, two = !!(G.R && G.L);
+  const zMin = SH.z + 0.12 * LH, zWant = SH.z + (two ? 0.42 : 0.5) * LH;
+  const M = HUM_META[s.def.id] || HUM_META.cowboy, wd = WEAPONS[s.weapon], lift = wd && wd.kind === 'rocket' ? (M.padLift || 0) : 0;      // a launcher rests on the shoulder: over big armour it is lifted clear of the pad
+  const tx = SH.x * 0.62, ty = SH.y - 0.26 * LH + lift;
+  g.position.x += (tx - gr.x) * S; g.position.y += (ty - gr.y) * S; g.userData.z += (zWant - gr.z) * S; g.position.z = g.userData.z;
+  if (two) {                                                              // the other hand must reach its grip: if not, bring the whole gun back towards the body (the shooting hand may come in to 12% of an arm from its shoulder)
+    const lc = G.L.h.c, it = GRIP_IDLE[s.weapon] && g.userData.T && g.userData.T[GRIP_IDLE[s.weapon]];
+    const p = grip(it ? [lc[0] + it.position.x, lc[1] + it.position.y, lc[2] + it.position.z] : lc, _hV2);
+    const d = p.distanceTo(SL), ok = LL * 0.9;
+    if (d > ok) { const room = Math.max(0, zWant - zMin), back = Math.min((d - ok) * 1.15, room); g.userData.z -= back * S; g.position.z = g.userData.z; }
+  }
+}
+function humGunHands(s) {
+  const h = s.hum, g = s.gunNode, w = s.weapon, G = FPL.GRIPS[w], T = g.userData.T, S = h.S, gk = (s.def.gs / S);
+  if (!G) return;
+  if (!g.userData.hs) humPlaceGun(s, g, G, h, S);
+  for (let k = 0; k < 2; k++) {
+    const sd = k === 0 ? 'R' : 'L', gr = G[sd], A_ = h.arm[sd], hr = h.hd[sd];
+    if (!gr || (gr.solo && !(s.rlK > 0.001))) {                         // a free hand (or the left hand of a one-handed gun between reloads): low and relaxed at that side
+      const side = sd === 'R' ? -1 : 1, Sh = h.cp[A_.up];
+      _hV4.set(Sh.x + side * 0.1, Sh.y - (A_.L1 + A_.L2) * 0.72, Sh.z + 0.12);
+      humArmIK(h, sd, _hV4, _hV3.set(side * 0.5, -0.5, -1), _hV2.set(0.1 * -side, -0.9, 0.35), _hV.set(-side * 0.3, 0.2, 1), 0.3); continue;
+    }
+    let c = gr.h.c, px = c[0], py = c[1], pz = c[2], fv = gr.f, bv = gr.b, curl = gr.k === 'open' ? 0.25 : (gr.wrap ? 0.8 : 0.7);
+    if (k === 1) { const it = GRIP_IDLE[w] && T && T[GRIP_IDLE[w]]; if (it) { px += it.position.x; py += it.position.y; pz += it.position.z; } }
+    const SC = s.rlS && s.rlT >= 0 ? s.rlS : null, SK = SC && (k === 1 ? SC.L : SC.R);
+    if (SK) { const hh = rlxHand(SC, SK, s.rlT, T, [px, py, pz]); px = hh.c[0]; py = hh.c[1]; pz = hh.c[2]; if (hh.hold && hh.hold.f && hh.hold.b) { fv = hh.hold.f; bv = hh.hold.b; } if (hh.hold) curl = hh.hold.k === 'open' ? 0.25 : curl; }
+    else if (k === 1) {
+      const rh = RELOAD_HAND[w], f_ = s.rlK;
+      if (rh && f_ > 0.001) { const tg = rh[1] && T && T[rh[1]]; px += (rh[0][0] + (tg ? tg.position.x : 0) - px) * f_; py += (rh[0][1] + (tg ? tg.position.y : 0) - py) * f_; pz += (rh[0][2] + (tg ? tg.position.z : 0) - pz) * f_; }
+    }
+    // the handle's centre in the gun's space -> the rig's space -> the model's space; the wrist sits back from the handle along the fingers and out on the back of the hand
+    gunPoint(g, px, py, pz, _hP);
+    const bd = _hV2.set(bv[0], bv[1], bv[2]).applyQuaternion(g.quaternion).normalize(), fd = _hV.set(fv[0], fv[1], fv[2]).applyQuaternion(g.quaternion).normalize();
+    fd.addScaledVector(bd, -fd.dot(bd)).normalize();
+    const rad = (gr.h.hu + gr.h.hv) * 0.5 * gk + 0.012, yy = gr.y === undefined ? 0.55 : gr.y;
+    _hV3.set(_hP.x / S, _hP.y / S, _hP.z / S).addScaledVector(bd, rad).addScaledVector(fd, -yy * hr.palm);
+    const wr = _hV4.copy(_hV3), side = sd === 'R' ? -1 : 1;
+    humArmIK(h, sd, wr, _hCu.set(HUM_POLE[sd][0], HUM_POLE[sd][1], HUM_POLE[sd][2]), fd, bd, curl);
+  }
+}
+
 function buildActor(ci, slot) {
+  if (CH[ci].human) return humActor(ci, slot);
   const d = CH[ci], M = d.meta, U = makePoseUniforms(M), sq = d.id === 'squirrel';
   const mat = new THREE.MeshLambertMaterial({ map: sq && slot === 2 ? d.texGray : d.tex });
   const dmat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });   // so shadows follow the moving legs too
@@ -1937,6 +2192,7 @@ function setGun(s, w) {
   updateArms(s);
 }
 function animateActor(s, dt, t, run, air) {
+  if (s.hum) return humAnimate(s, dt, t, run, air);
   const M = s.def.meta, cad = M.cadence || 1, flap = M.flapIdle !== undefined, sqr = s.def.id === 'squirrel';
   s.sp += ((air ? Math.max(run, 0.55) : run) - s.sp) * Math.min(1, dt * 14);
   s.phase += dt * ((2.2 + 12.5 * s.sp) * cad + (flap && air ? 7 : 0));
@@ -2190,6 +2446,17 @@ RLX['western/0'] = {                       // PEACEMAKER: swing the cylinder out
 // ---------- shared hand holds ----------
 const HF = { k: 'open', f: [-0.3, 0.2, 1], b: [0.6, 0.8, 0], dev: [0.1, 0.25] };
 const HG = (hu, hv, ax, u) => ({ k: 'grip', h: { ax: ax || [0, 0, 1], u: u || [1, 0, 0], hu, hv }, f: [-0.5, 0.8, 0.3], b: [0.9, 0.2, -0.3], y: 0.56, dev: [-0.2, 0.1], pre: 'open' });
+
+// ---- M72 LAW: it is a one-shot tube, so the reload is a new one: the empty tube is let go (0.26), the muzzle dips while a fresh tube is pulled off the back and snapped open (the model's own 'extend' clip, 0.5 - 1.3), then it comes back up onto the shoulder
+RLX['classic/2'] = { d: 1.7,
+  gun: [[0,0,0,0,0,0,0],[0.26,0.28,0,0.1,0,-0.02,0],[0.5,0.42,0,0.05,0,-0.04,0.02],[1.3,0.38,0,0.03,0,-0.03,0.02],[1.7,0,0,0,0,0,0]],
+  parts: { ta: m72tube(), tb: m72tube(), tc: m72tube(), td: m72tube(), te: m72tube(), tf: m72tube(), tg: m72tube(), tz: { v: [[0, 1], [0.26, 0], [0.5, 1]] } },
+  holds: { free: HF, tube: { k: 'grip', h: { ax: [0, 0, 1], u: [1, 0, 0], hu: 0.045, hv: 0.045 }, f: [-0.5, 0.8, 0.3], b: [0.9, 0.2, -0.3], y: 0.56, dev: [-0.2, 0.1], pre: 'open' } },
+  L: [[0,null,null,null,0],[0.2,null,null,null,0],[0.34,0.16,-0.32,0.0,0,'free'],[0.5,0.0,-0.06,-0.36,1,'tube','tf'],[1.2,0.0,-0.06,-0.36,1,'tube','tf'],[1.38,0.1,-0.14,0.1,0,'free'],[1.7,null,null,null,0]],
+  // first person: the hands stay where they can be seen (the tube is on the right-hand side of the screen and its rear end is off the edge), the gun hardly moves
+  fp: { gun: [[0,0,0,0,0,0,0],[0.26,0.1,0,0.04,0,0.01,0],[0.5,0.14,0,0.05,-0.02,0.02,0.03],[1.3,0.14,0,0.05,-0.02,0.02,0.03],[1.7,0,0,0,0,0,0]],
+        L: [[0,null,null,null,0],[0.18,null,null,null,0],[0.3,0.26,-0.08,0.12,0,'free'],[0.5,0.0,-0.06,0.45,1,'tube','ta'],[1.2,0.0,-0.06,0.45,1,'tube','ta'],[1.4,0.1,-0.14,0.2,0,'free'],[1.7,null,null,null,0]] } };    // (te is a 6-triangle speck that stays on the gun)
+function m72tube() { return { c: 'extend', m: [[0, 2.917], [0.26, 2.917], [0.5, 0], [1.3, 2.917], [1.7, 2.917]], v: [[0, 1], [0.26, 0], [0.5, 1]] }; }
 
 // ---- Pepperbox: ratchet the whole barrel cluster off the frame (clicks at 0.08 / 0.18 / 0.26), swap in a fresh cluster (pop 0.78, back on 0.95), screw it home (locks 1.19 / 1.45)
 RLX['western/1'] = { d: 2.2,
@@ -2455,7 +2722,7 @@ function assignChar(who, want) {
   setGun(a, who === me ? me.weapon : (who.weapon | 0));
   if (who === me) a.root.position.copy(me.pos);
 }
-function swapIfReady(who) { if (who.wantChar !== who.char && CH[who.wantChar] && CH[who.wantChar].ready) assignChar(who, who.wantChar); }
+function swapIfReady(who) { const w = CH[who.wantChar]; if (w && w.human && !w.ready && !w.loading && w.ref) ensureChar(who.wantChar); if (who.wantChar !== who.char && w && w.ready) assignChar(who, who.wantChar); }
 
 /* ---------- Extra characters + landmarks are downloaded from models.pack ---------- */
 const pack = { buf: null, base: 0, hdr: null, state: 'idle' };
@@ -2470,6 +2737,7 @@ function parsePack(buf) {
 }
 function ensureChar(ci) {
   const d = CH[ci]; if (!d || d.ready || d.loading || !d.ref) return;
+  if (d.human) { humEnsure(d); return; }
   d.loading = true;
   safe('load ' + d.id, () => {
     const e = d.ref;
@@ -2630,7 +2898,7 @@ function fx(pos, color, s0, s1, life, op, vy = 0) {
   m.userData = { t: 0, life, s0, s1, op, vy }; scene.add(m); fxLive.push(m);
 }
 function updateFx(dt) {
-  fbUpdate(dt); impTick(dt);
+  fbUpdate(dt); impTick(dt); try { jetTick(dt); } catch (_) {}
   for (let i = fxLive.length - 1; i >= 0; i--) {
     const m = fxLive[i], u = m.userData; u.t += dt; const k = u.t / u.life;
     if (k >= 1) { scene.remove(m); fxLive.splice(i, 1); fxPool.push(m); continue; }
@@ -2669,6 +2937,111 @@ function fbMat(sh) {
     vertexShader: FXB_VS, fragmentShader: FXB_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide,
     blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor });
 }
+/* ---------- v42g: the sea, from the ocean model (ocean.pack: 32 baked swell shapes on a 48x48 lattice that tiles) ---------- */
+const OCEAN = { ready: false, VS: 0.055, HD: 0.1, TILE: 62, speed: 0.8, lastT: -1, fade0: 112, fade1: 172 };
+async function loadOcean() {
+  try {
+    const res = await fetch('ocean.pack'); if (!res.ok) throw new Error('HTTP ' + res.status);
+    const buf = await res.arrayBuffer(), dv = new DataView(buf);
+    if (dv.getUint32(0, true) !== 0x434f5454) throw new Error('ocean.pack: bad header');
+    const hl = dv.getUint32(4, true), h = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, hl))), base = 8 + hl;
+    const L = h.L, nf = h.nf, q = new Int16Array(buf.slice(base, base + h.dz_bytes)), O = OCEAN;
+    O.L = L; O.nf = nf; O.q = q; O.cell = h.cell; O.loop = h.loop; O.dx = new Float32Array(L * L); O.dy = new Float32Array(L * L); O.dz = new Float32Array(L * L);
+    O.kx = h.sc[0] / 32000 * O.HD; O.ky = h.sc[1] / 32000 * O.HD; O.kz = h.sc[2] / 32000 * O.VS;
+    // the mesh: a fine grid lined up with the lattice around the island, a few big flat quads out to the horizon
+    const K = 55, fine = []; for (let a = -K; a <= K; a++) fine.push(a * h.cell);
+    const AX = [-620, -330].concat(fine, [330, 620]), N = AX.length, F0 = 2, pos = new Float32Array(N * N * 3), nor = new Float32Array(N * N * 3), uv = new Float32Array(N * N * 2);
+    const act = [], actF = [], actI = [];
+    for (let r = 0; r < N; r++) for (let p = 0; p < N; p++) {
+      const vi = r * N + p, x = AX[p], z = AX[r];
+      pos[vi * 3] = x; pos[vi * 3 + 2] = z; nor[vi * 3 + 1] = 1; uv[vi * 2] = x / O.TILE; uv[vi * 2 + 1] = -z / O.TILE;
+      const rad = Math.hypot(x, z);
+      if (p >= F0 && p < F0 + 2 * K + 1 && r >= F0 && r < F0 + 2 * K + 1 && rad < O.fade1) {
+        const t = Math.min(1, Math.max(0, (rad - O.fade0) / (O.fade1 - O.fade0))), f = 1 - t * t * (3 - 2 * t);
+        const i = (((p - F0 - K) % L) + L) % L, j = (((r - F0 - K) % L) + L) % L;
+        act.push(vi); actF.push(f); actI.push(j * L + i);
+      }
+    }
+    const idx = new Uint16Array((N - 1) * (N - 1) * 6); let w = 0;
+    for (let r = 0; r < N - 1; r++) for (let p = 0; p < N - 1; p++) { const a = r * N + p, b = a + 1, c = a + N, d = c + 1; idx[w++] = a; idx[w++] = c; idx[w++] = b; idx[w++] = b; idx[w++] = c; idx[w++] = d; }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    geo.boundingSphere = new THREE.Sphere(V(0, 0, 0), 900); geo.boundingBox = new THREE.Box3(V(-620, -3, -620), V(620, 3, 620));
+    O.geo = geo; O.N = N; O.act = Int32Array.from(act); O.actF = Float32Array.from(actF); O.actI = Int32Array.from(actI); O.AX = AX;
+    const tex = await new Promise(res => {
+      const im = new Image(), t = new THREE.Texture(im); im.onload = () => { t.needsUpdate = true; res(t); }; im.onerror = () => res(null);
+      im.src = URL.createObjectURL(new Blob([new Uint8Array(buf, base + h.dz_bytes, h.tex)], { type: 'image/jpeg' }));
+    });
+    if (!tex) throw new Error('ocean.pack: texture failed');
+    tex.wrapS = tex.wrapT = THREE.MirroredRepeatWrapping; tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.anisotropy = 2; O.tex = tex;
+    O.mat = new THREE.MeshPhongMaterial({ map: tex, color: 0xd9f3f7, emissive: 0x0a3f4a, specular: 0xbfeaf2, shininess: 70, transparent: true, opacity: 0.88 });
+    water.geometry.dispose(); water.geometry = geo; water.material = O.mat; water.rotation.x = 0; water.frustumCulled = false; water.renderOrder = 0;
+    O.ready = true; oceanUpdate(0, true);
+  } catch (e) { OCEAN.ready = false; console.warn('ocean.pack not loaded - keeping the flat sea', e); packWarn('ocean.pack'); }
+}
+function oceanUpdate(t, force) {
+  const O = OCEAN; if (!O.ready) return;
+  if (!force && t - O.lastT < (perf.scale < 0.8 ? 0.066 : 0.033)) return; O.lastT = t;
+  const ph = ((t * O.speed / O.loop) % 1) * O.nf, k0 = Math.floor(ph) % O.nf, k1 = (k0 + 1) % O.nf, u = ph - Math.floor(ph), L = O.L, L2 = L * L, q = O.q, b0 = k0 * 3 * L2, b1 = k1 * 3 * L2, a0 = 1 - u;
+  const dx = O.dx, dy = O.dy, dz = O.dz, kx = O.kx, ky = O.ky, kz = O.kz;
+  for (let i = 0; i < L2; i++) {
+    dx[i] = (q[b0 + i] * a0 + q[b1 + i] * u) * kx; dy[i] = (q[b0 + L2 + i] * a0 + q[b1 + L2 + i] * u) * ky; dz[i] = (q[b0 + 2 * L2 + i] * a0 + q[b1 + 2 * L2 + i] * u) * kz;
+  }
+  const pos = O.geo.attributes.position.array, nor = O.geo.attributes.normal.array, act = O.act, actF = O.actF, actI = O.actI, N = O.N, AX = O.AX, K = 55, F0 = 2, inv = 1 / (2 * O.cell), lvl = -0.03;
+  for (let n = 0; n < act.length; n++) {
+    const vi = act[n], f = actF[n], li = actI[n], j = (li / L) | 0, i = li - j * L, ip = j * L + (i + 1) % L, im = j * L + (i + L - 1) % L, jp = ((j + 1) % L) * L + i, jm = ((j + L - 1) % L) * L + i;
+    const p = vi % N, r = (vi / N) | 0;
+    pos[vi * 3] = AX[p] + f * dx[li]; pos[vi * 3 + 1] = lvl + f * dz[li]; pos[vi * 3 + 2] = AX[r] + f * dy[li];
+    const nx = -(dz[ip] - dz[im]) * inv * f, nz = -(dz[jp] - dz[jm]) * inv * f, il = 1 / Math.sqrt(nx * nx + 1 + nz * nz);
+    nor[vi * 3] = nx * il; nor[vi * 3 + 1] = il; nor[vi * 3 + 2] = nz * il;
+  }
+  O.geo.attributes.position.needsUpdate = true; O.geo.attributes.normal.needsUpdate = true;
+  if (O.tex) O.tex.offset.set(t * 0.0045, t * 0.0030);
+}
+
+/* ---------- v42g: the flamethrower jet, from the video (fx.pack sheet 'jet': ramp-up, steady roar, die-out) ---------- */
+const JET = { slots: [], geo: null, X: new THREE.Vector3(), Y: new THREE.Vector3(), Z: new THREE.Vector3(), C: new THREE.Vector3(), M: new THREE.Matrix4(), D: new THREE.Vector3() };
+const JET_VS = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+const JET_FS = ['uniform sampler2D map; uniform vec2 o0, o1, cs; uniform float mixT, op; varying vec2 vUv;',
+  'vec3 smp(vec2 o) { vec2 s = clamp(vUv, 0.004, 0.996); return texture2D(map, o + s * cs).rgb; }',
+  'void main() { vec3 rgb = mix(smp(o0), smp(o1), mixT); float m = max(rgb.r, max(rgb.g, rgb.b)); float al = clamp((m - 0.06) * 1.6, 0.0, 1.0) * 0.72;',
+  '  gl_FragColor = vec4(rgb * 1.5, al) * op; }'].join('\n');
+function jetSlot(i) {
+  let s = JET.slots[i]; if (s) return s; const sh = FXB.sheets.jet; if (!sh || !sh.tex) return null;
+  if (!JET.geo) { JET.geo = new THREE.PlaneGeometry(1, 1); JET.geo.translate(0.5 - sh.m0, 0, 0); }
+  const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: sh.tex }, o0: { value: new THREE.Vector2() }, o1: { value: new THREE.Vector2() }, cs: { value: new THREE.Vector2(1 / sh.cols, 1 / sh.rows) }, mixT: { value: 0 }, op: { value: 1 } },
+    vertexShader: JET_VS, fragmentShader: JET_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor });
+  const mesh = new THREE.Mesh(JET.geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 3; mesh.visible = false; scene.add(mesh);
+  return (JET.slots[i] = { mesh, mat, sh, ph: 'off', f: 0, idle: 9, op: 0 });
+}
+// called every frame a flamethrower is firing. mz: the muzzle, dir: the way the flame goes (unit, up and down included). Returns how visible the jet is (0..1), so the puffs can thin out.
+function jetPush(i, mz, dir) {
+  const s = jetSlot(i); if (!s) return 0;
+  s.idle = 0; if (s.ph === 'off') { s.ph = 'ramp'; s.f = 0; } else if (s.ph === 'dec') { s.ph = 'sus'; s.f = 0; }
+  const X = JET.X.copy(dir).normalize(), L = FLAME_RANGE * 1.12, C = JET.C.set(mz.x + X.x * L * 0.5 - camera.position.x, mz.y + X.y * L * 0.5 - camera.position.y, mz.z + X.z * L * 0.5 - camera.position.z);
+  const d = C.length() || 1, cr = Math.sqrt(Math.max(0, 1 - Math.pow(C.dot(X) / d, 2)));        // how side-on we see it: a flat jet seen end-on is just a line, so the puffs carry it there
+  const k = Math.min(1, Math.max(0, (cr - 0.1) / 0.4)); s.op = k * k * (3 - 2 * k);
+  const Z = JET.Z.copy(C).multiplyScalar(-1); Z.addScaledVector(X, -Z.dot(X)); if (Z.lengthSq() < 1e-6) Z.set(0, 1, 0); Z.normalize();
+  const Y = JET.Y.crossVectors(Z, X).normalize(); JET.M.makeBasis(X, Y, Z); s.mesh.quaternion.setFromRotationMatrix(JET.M); s.mesh.position.copy(mz); s.mesh.scale.set(L, L / s.sh.aspect * 1.9, 1);
+  return s.op;
+}
+function jetTick(dt) {
+  for (let i = 0; i < JET.slots.length; i++) {
+    const s = JET.slots[i]; if (!s || s.ph === 'off') continue; const sh = s.sh; s.idle += dt;
+    if (s.idle > 0.12 && s.ph !== 'dec') { s.ph = 'dec'; s.f = 0; }
+    s.f += dt * 26; let fi, n;
+    if (s.ph === 'ramp') { n = sh.nr; if (s.f >= n - 1) { s.ph = 'sus'; s.f = 0; } }
+    if (s.ph === 'sus') { n = sh.ns; const c = n - 1, m = s.f % (2 * c), p = m > c ? 2 * c - m : m; fi = sh.nr + p; }
+    else if (s.ph === 'ramp') fi = s.f;
+    else { n = sh.nd; if (s.f >= n - 1) { s.ph = 'off'; s.mesh.visible = false; continue; } fi = sh.nr + sh.ns + s.f; }
+    const f0 = Math.floor(fi), f1 = Math.min(sh.n - 1, f0 + 1), U = s.mat.uniforms, cl = sh.cols, rw = sh.rows;
+    U.o0.value.set((f0 % cl) / cl, 1 - (((f0 / cl) | 0) + 1) / rw); U.o1.value.set((f1 % cl) / cl, 1 - (((f1 / cl) | 0) + 1) / rw); U.mixT.value = fi - f0;
+    U.op.value = s.op * (s.ph === 'dec' ? 1 - s.f / sh.nd * 0.5 : 1); s.mesh.visible = s.op > 0.02;
+  }
+}
+function jetClear() { for (const s of JET.slots) if (s) { s.ph = 'off'; s.mesh.visible = false; } }
+
 async function loadFx() {
   try {
     const res = await fetch('fx.pack'); if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -3063,8 +3436,9 @@ function inFlame(mz, yaw, c, hr) {
   for (let k = 1; k <= 3; k++) { tmpV.set(mz.x + dx * k / 4, mz.y + dy * k / 4, mz.z + dz * k / 4); if (solidAt(tmpV)) return false; }   // walls stop flames
   return true;
 }
-function flameFx(mz, yaw, dir) {         // dir: in first person, the way you are looking (up and down included)
-  const hl = dir ? Math.hypot(dir.x, dir.z) || 1 : 1, sx = dir ? dir.x / hl : Math.sin(yaw), sz = dir ? dir.z / hl : Math.cos(yaw), sy = dir ? dir.y : 0, n = perf.scale < 0.8 ? 1 : 2;
+function flameFx(mz, yaw, dir, slot) {         // dir: in first person, the way you are looking (up and down included). slot: 0 me, 1 the other player (each gets its own jet sprite)
+  let jv = 0; try { jv = jetPush(slot | 0, mz, dir ? dir : JET.D.set(Math.sin(yaw), 0.02, Math.cos(yaw))); } catch (_) {}
+  const hl = dir ? Math.hypot(dir.x, dir.z) || 1 : 1, sx = dir ? dir.x / hl : Math.sin(yaw), sz = dir ? dir.z / hl : Math.cos(yaw), sy = dir ? dir.y : 0, n = jv > 0.55 ? 1 : perf.scale < 0.8 ? 1 : 2;
   const FD = WEAPONS[7], cl = FD.fxc || [0xffe082, 0xff9800, 0xff5722], bm = FD.beam;
   for (let k = 0; k < (bm ? n * 2 : n); k++) {
     const d = 0.4 + Math.random() * FLAME_RANGE * (bm ? 0.98 : 0.85), j = (Math.random() - 0.5) * (bm ? 0.05 : 0.2 + d * 0.16), u = Math.random();
@@ -4137,11 +4511,23 @@ const FPL = (() => {
     knife:  { s: 0.9, hand: { p: [0.155, -0.105, -0.36], f: [0.315, -0.015, -0.949], b: [0.592, 0.791, 0.184] }, swing: [1, 0.1, 0.25] },
     thrown: { s: 0.62, hand: { p: [0.15, -0.115, -0.38], f: [-0.35, 0.55, -0.75], b: [0.6, 0.65, 0.25] }, swing: [1, 0, 0] },
     sword:  { s: 1.0, hand: { p: [0.1, -0.075, -0.46], f: [-0.62, 0.2, -0.76], b: [0.75, 0.25, -0.55] }, swing: [1, 0, -0.35] },
-    hammer: { s: 0.9, hand: { p: [0.13, -0.12, -0.46], f: [-0.83, -0.26, -0.11], b: [0.25, -0.52, -0.66] }, swing: [0.3, 0, -1] }
+    hammer: { s: 0.9, hand: { p: [0.08, -0.03, -0.5], f: [-0.83, -0.26, -0.11], b: [0.25, -0.52, -0.66] }, swing: [0.3, 0, -1] }
   };
   const WPOSE = { 2: { p: [0.14, -0.17, -0.5], s: 0.75, ry: 0.06 }, 11: { p: [0.12, -0.2, -0.42], s: 0.85 } };
   // v37: the viewmodel is drawn at VMS of its old size, and moved right / down by HIP (lens units); HIP_R turns the gun a little more towards the crosshair
   const VMS = 0.72, HIPC = { pistol: [0.06, 0.02, 0], smg: [0.055, 0.0, 0], rifle: [0.055, 0.005, 0], heavy: [0.06, 0.0, 0], thrown: [0.06, 0.05, 0], knife: [0.07, 0.015, 0] }, HIP_DEF = [0.07, -0.01, 0], HIP_R = [0, 0.085], ZD = { ox: 0, oy: 0, oz: 0, rx: 0, ry: 0, rz: 0 };
+  const AIM_D = 20;     // the barrel is aimed at the spot on the view ray this far out: the muzzle sits low and to the right, so the line along it crosses the crosshair
+  const BORE = { 'classic/2': { p: [0, -0.1536, 0.853], d: [0, -0.157, 1] } };      // barrels that do not run along the gun's +z through GUN_TIP: the M72 tube (end rings measured on the model) slopes 9 degrees down towards the muzzle
+  const aimFix = (R0, pivot, c, s, w) => {      // R0: gun -> view rotation; pivot: where the right-hand grip centre c (gun space) sits in view space; returns R0 turned about the grip
+    const t = GUN_TIP[w], bo = BORE[ARS_ID + '/' + w], bd = bo ? bo.d : [0, 0, 1]; if (!t) return R0;
+    const tip = mul(bo ? bo.p : [t.x, t.y, t.z], s), gc = mul(c, s); let R = R0;
+    for (let i = 0; i < 5; i++) {
+      const m = add(sub(pivot, mv(R, gc)), mv(R, tip)), d = norm(mv(R, bd)), want = norm(sub([0, 0, -AIM_D], m));
+      const ax = cross(d, want), sn = Math.hypot(ax[0], ax[1], ax[2]); if (sn < 1e-6) break;
+      R = mm(axisM(norm(ax), Math.atan2(sn, dot(d, want))), R);
+    }
+    return R;
+  };
   const CLS_OF = ['pistol', 'smg', 'heavy', 'knife', 'sword', 'rifle', 'thrown', 'rifle', 'rifle', 'rifle', 'heavy', 'heavy', 'rifle', 'hammer', 'thrown'];
 
   // ---- where each hand goes on each weapon (all in the weapon's own coordinates: +z to the muzzle, +y up, +x to the shooter's LEFT) ----
@@ -4157,34 +4543,35 @@ const FPL = (() => {
   // (c: centre of the fore-end's cross-section, hu / hv: half its width / height). The top rail and the sights stay clear.
   const CUP = (c, hu, hv, o) => Object.assign({ h: Hd(c, [0, 0, 1], [1, 0, 0], hu, hv, Math.min(hu, hv) * 0.5), f: [-1, 0.5, 0.1], b: [-0.45, -1, 0], y: 0.52, dev: [0.5, 0.1], tk: 0.6 }, o || {});
   const GRIPS = [
-    { R: RGRIP([0, -0.08, 0.008], 0.2, 0.027, 0.031, { dev: [0.08, 0.1] }), L: { h: pistolGrip([0.004, -0.1, 0.03], 0.2, 0.04, 0.042), f: [-0.36, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52, dev: [0.05, 0.1] } },  // 0 pistol: both hands, the left wrapped round the right
-    { R: RGRIP([0, -0.1, 0.06], 0.08, 0.023, 0.029, { dev: [0.2, 0.1] }), L: LSIDE([0, 0.005, 0.19], 0.031, 0.048, { dev: [-0.2, 0.1] }) },                                       // 1 uzi
+    { R: RGRIP([0.002, -0.055, 0.015], 0.2, 0.025, 0.031, { dev: [0.5, 0.1], thumb: 'fwd', y: 0.78, hs: 1.15 }), L: { h: pistolGrip([0.004, -0.1, 0.03], 0.2, 0.04, 0.042), f: [-0.36, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52, dev: [0.05, 0.1], solo: true } },  // 0 pistol: both hands, the left wrapped round the right
+    { R: RGRIP([0, -0.1, 0.06], 0.08, 0.023, 0.029, { dev: [0.2, 0.1] }), L: CUP([0, -0.005, 0.2], 0.03, 0.04) },                                       // 1 uzi
     { R: RGRIP([0, -0.11, -0.02], 0.2, 0.02, 0.025), L: RGRIP([0, -0.13, 0.2], 0, 0.02, 0.0225, { f: [0.2, 0, 1], b: [1, -0.1, -0.2], y: 0.55 }) },  // 2 rocket launcher: two upright grips
     { R: { h: Hd([0, 0, -0.012], [0, 0, 1], [1, 0, 0], 0.017, 0.021), f: [0, -1, 0], b: [-1, 0, 0], y: 0.55 } },                       // 3 knife
     { R: { h: Hd([0, 0, 0.042], [0, 0, 1], [1, 0, 0], 0.019, 0.022), f: [-0.1, -1, 0], b: [-1, 0.1, 0], y: 0.55 },
       L: { h: Hd([0, 0, -0.05], [0, 0, 1], [1, 0, 0], 0.019, 0.022), f: [0.2, -1, 0], b: [1, 0.2, 0], y: 0.55, auto: true } },                     // 4 katana: both hands on the handle
     { R: RGRIP([0, -0.075, -0.09], 0.25, 0.02, 0.0225), L: CUP([0, 0, 0.13], 0.027, 0.03) },                                                 // 5 crossbow: the left hand under the stock
     { R: { h: Hd([0, 0, 0], [0, 1, 0], [1, 0, 0], 0.085, 0.085, 0.085), f: [-1, 0, 0.5], b: [-0.5, 0, -1], y: 0.5, wrap: 2.2 } },   // 6 grenade
-    { R: RGRIP([0, -0.09, 0.02], 0.2, 0.0225, 0.025), L: SIDE([0, 0.02, 0.27], 0.04, 0.04, { h: Hd([0, 0.02, 0.27], [0, 0, 1], [1, 0, 0], 0.04, 0.04, 0.04) }) },   // 7 flamethrower: the left hand on the barrel
+    { R: RGRIP([0, -0.09, 0.02], 0.2, 0.0225, 0.025), L: CUP([0, -0.01, 0.27], 0.03, 0.03) },   // 7 flamethrower: the left hand on the barrel
     { R: RGRIP([0, -0.1, -0.02], 0.2, 0.025, 0.03), L: CUP([0, 0, 0.12], 0.042, 0.052) },                                                // 8 freeze ray
     { R: RGRIP([0, -0.045, -0.085], 0.75, 0.021, 0.03, { y: 0.52 }), L: CUP([0, -0.035, 0.36], 0.028, 0.026) },                                           // 9 shotgun: the left hand under the pump, working it
     { R: RGRIP([0, -0.07, -0.05], 0.3, 0.02, 0.0225), L: CUP([0, -0.03, 0.34], 0.027, 0.027) },                                       // 10 sniper: under the fore-end
-    { R: RGRIP([0, -0.08, -0.07], 0.25, 0.02, 0.0225), L: LSIDE([0, 0, 0.17], 0.052, 0.052, { h: Hd([0, 0, 0.17], [0, 0, 1], [1, 0, 0], 0.052, 0.052, 0.052) }) },   // 11 minigun: the left hand on the carry handle
+    { R: RGRIP([0, -0.08, -0.07], 0.25, 0.02, 0.0225), L: CUP([0, 0, 0.17], 0.05, 0.052) },   // 11 minigun: the left hand on the carry handle
     { R: RGRIP([0, -0.09, -0.02], 0.2, 0.0225, 0.025), L: CUP([0, 0, 0.14], 0.05, 0.052) },                                          // 12 plasma rifle
     { R: { h: Hd([0, 0, 0.05], [0, 0, 1], [1, 0, 0], 0.017, 0.017), f: [-0.25, -1, 0], b: [-1, 0.25, 0], y: 0.55 },
-      L: { h: Hd([0, 0, 0.21], [0, 0, 1], [1, 0, 0], 0.015, 0.015), f: [0.3, -1, 0], b: [1, 0.3, 0], y: 0.55, auto: true } },                       // 13 sledgehammer
+      L: { h: Hd([0, 0, -0.05], [0, 0, 1], [1, 0, 0], 0.016, 0.016), f: [0.3, -1, 0], b: [1, 0.3, 0], y: 0.55, auto: true } },                       // 13 sledgehammer
     { R: { h: Hd([0, -0.02, 0.025], [0, 1, 0], [1, 0, 0], 0.07, 0.062, 0.03), f: [-1, 0, 0.6], b: [-0.6, 0, -1], y: 0.5, wrap: 2.6 } } // 14 dynamite
   ];
   // the free hand when a weapon only needs one (knife, grenades): open and relaxed, low on the left. f: fingers, b: back of the hand (vm space)
   const FREE = {
     knife:  { pose: 'open', p: [-0.15, -0.12, -0.37], f: [0.5, 0.3, -0.8], b: [-0.62, 0.7, 0.3] },
-    thrown: { pose: 'open', p: [-0.15, -0.12, -0.38], f: [0.45, 0.35, -0.82], b: [-0.62, 0.7, 0.3] }
+    thrown: { pose: 'open', p: [-0.15, -0.12, -0.38], f: [0.45, 0.35, -0.82], b: [-0.62, 0.7, 0.3] },
+    pistol: { pose: 'open', p: [-0.2, -0.34, -0.3], f: [0.5, 0.3, -0.8], b: [-0.62, 0.7, 0.3] }      // the free hand of a one-handed gun: down below the screen
   };
   // which way each forearm leaves the screen (vm space), per weapon kind: right, left
   const ELBOW = {
-    pistol: [[-0.42, -0.85, 0.36], [0.42, -0.85, 0.36]], smg: [[-0.15, -0.85, 0.42], [0.2, -0.82, 0.42]], rifle: [[0.45, -0.7, 0.55], [-0.7, -0.6, 0.4]],
+    pistol: [[0.55, -0.8, 0.45], [-0.35, -0.85, 0.4]], smg: [[-0.15, -0.85, 0.42], [0.2, -0.82, 0.42]], rifle: [[0.45, -0.7, 0.55], [-0.7, -0.6, 0.4]],
     heavy: [[0.45, -0.7, 0.55], [-0.45, -0.7, 0.55]], knife: [[0.4, -0.75, 0.5], [-0.35, -0.8, 0.5]], thrown: [[0.4, -0.75, 0.5], [-0.35, -0.8, 0.5]],
-    sword: [[0.6, -0.6, 0.5], [-0.35, -0.8, 0.5]], hammer: [[0.55, -0.65, 0.5], [-0.35, -0.8, 0.5]], fists: [[0.35, -0.75, 0.55], [-0.35, -0.75, 0.55]]
+    sword: [[0.4, -0.85, 0.4], [-0.4, -0.85, 0.4]], hammer: [[0.4, -0.85, 0.4], [-0.4, -0.85, 0.4]], fists: [[0.35, -0.75, 0.55], [-0.35, -0.75, 0.55]]
   };
 
   // ---- throwing (grenade, dynamite) ----
@@ -4314,6 +4701,12 @@ const FPL = (() => {
       col: { hand: [44, 40, 116], palm: [96, 86, 160], fing: [40, 44, 120], claw: [150, 86, 196] }, fur: 0.06,
       arm: { rw: 0.034, re: 0.052, flat: 0.84, Lf: 0.44, col: [38, 38, 112], col2: [92, 82, 156], scales: true } }
   };
+  const HK = (c, a) => { const k = JSON.parse(JSON.stringify(KITS.samurai)); delete k.col.back; Object.assign(k.col, c); Object.assign(k.arm, a); k.skin = true; return k; };
+  KITS.cowboy = HK({ hand: [198, 142, 108], palm: [216, 164, 134], fing: [198, 142, 108], nail: [226, 188, 168] }, { col: [198, 142, 108], col2: [214, 160, 130], bands: 0, skinArm: true });    // rolled-up sleeves: a bare forearm
+  KITS.alien = HK({ hand: [226, 224, 216], palm: [236, 234, 226], fing: [224, 222, 214], nail: [212, 208, 202], nailbed: [214, 206, 204], nailtip: [238, 236, 230], blush: [214, 176, 182] }, { col: [226, 224, 216], col2: [236, 234, 226], bands: 0, skinArm: true });
+  KITS.wizard = HK({ hand: [222, 184, 158], palm: [236, 202, 178], fing: [222, 182, 156], nail: [236, 204, 190] }, { col: [96, 100, 98], band: [56, 58, 58], trim: [126, 62, 40], bands: 0.07 });
+  KITS.robot = HK({ hand: [44, 66, 142], palm: [30, 44, 98], fing: [40, 60, 132], nail: [44, 66, 142], blush: null, nailbed: [44, 66, 142], nailtip: [60, 84, 170] }, { col: [40, 64, 146], band: [18, 26, 60], trim: [150, 162, 190], bands: 0.05 });
+  KITS.ronin = HK({ hand: [208, 158, 128], palm: [224, 176, 148], fing: [206, 156, 126], nail: [230, 194, 174] }, { col: [116, 56, 40], band: [64, 30, 24], trim: [212, 198, 172], bands: 0.06 });
   const kitOf = id => KITS[id] || KITS.samurai;
 
   // ---- a small mesh builder ----
@@ -4473,8 +4866,18 @@ const FPL = (() => {
   // pose: { kind: 'grip', h, M (hand frame in weapon space), gs (weapon scale), y, wrap } | { kind: 'open' } | { kind: 'fist' }
   // returns the mesh plus 'anchor': where the handle's centre sits in the hand's own coordinates
   function buildHand(id, pose, mirror) {
-    const K = kitOf(id), col = K.col, W = K.W, Lp = K.Lp, Tp = K.Tp, fr = K.fr, m = new Mesh();
+    const K = (() => { const k0 = kitOf(id), s = pose.hs; if (!s || s === 1) return k0; const k = Object.assign({}, k0); for (const f of ['W', 'Lp', 'Tp', 'FL', 'fr']) if (k0[f]) k[f] = k0[f] * s; k.thumb = Object.assign({}, k0.thumb, { l: k0.thumb.l * s, r: k0.thumb.r * s }); if (k0.claw) k.claw = Object.assign({}, k0.claw, { l: k0.claw.l * s, r: k0.claw.r * s }); return k; })(), col = K.col, W = K.W, Lp = K.Lp, Tp = K.Tp, fr = K.fr, m = new Mesh();
     const fur = K.fur || 0.06;
+    const gauss = (x, m_, w) => Math.exp(-Math.pow((x - m_) / w, 2));
+    const BL = col.blush === undefined ? [226, 128, 108] : col.blush, NB = col.nailbed || [232, 172, 162], NT = col.nailtip || [244, 232, 224];
+    const skinFing = (c, t, ps) => {                                   // t along the finger, ps: +1 on the back of it, -1 on the inside
+      const back = sstep(-0.1, 0.6, ps), inner = sstep(0.1, -0.5, ps), cr = gauss(t, 0.43, 0.035) + gauss(t, 0.76, 0.03) + 0.7 * gauss(t, 0.1, 0.04);
+      if (BL) c = mix(c, BL, 0.22 * (gauss(t, 0.06, 0.07) + gauss(t, 0.43, 0.05)) * back);   // a blush over the knuckles
+      c = shade(c, 1 - cr * (0.10 * back + 0.24 * inner));                                    // the creases at the joints, deeper on the inside
+      if (BL && t > 0.88) c = mix(c, BL, 0.3 * sstep(0.88, 1, t));                            // warm fingertips
+      if (K.nail && t > 0.78 && ps > 0.35) c = t > 0.94 ? NT : NB;                            // the nail: a coloured bed and a pale free edge
+      return c;
+    };
     const grain = (base, p, amt) => { const n = vnoise(p, 260) - 0.5, n2 = vnoise(p, 900) - 0.5; let k = 1 + (n * 0.7 + n2 * 0.5) * (amt === undefined ? fur : amt); let c = shade(base, k);
       if (K.spots && vnoise(p, 75) > 0.66) c = mix(c, col.spot, 0.75); if (K.scales) { const s = Math.abs(Math.sin(p[0] * 520) * Math.sin(p[1] * 520 + p[2] * 300)); c = shade(c, 0.86 + 0.22 * s); } return c; };
     // what the fingers close around
@@ -4492,6 +4895,15 @@ const FPL = (() => {
       let c = mix(col.palm, col.hand, sstep(-0.35, 0.35, d[2]));
       if (col.back) c = mix(c, col.back, sstep(0.25, 0.55, d[2]) * sstep(-0.95, -0.55, d[1]) * (1 - sstep(0.7, 0.95, d[1])) > 0.5 ? 1 : 0);
       if (K.pads) { const pd = Math.hypot(loc[0] / (W * 0.24), (loc[1] - Lp * 0.04) / (Lp * 0.3)); if (d[2] < -0.3 && pd < 1) c = col.pad; }
+      if (K.skin) {
+        const xx = loc[0] / (W * 0.5), yy = loc[1] / (Lp * 0.5), bk = sstep(0.15, 0.6, d[2]), inn = sstep(-0.15, -0.6, d[2]);
+        for (const x0 of [-0.55, -0.18, 0.18, 0.55]) c = shade(c, 1 - 0.08 * gauss(xx - x0 * (0.7 + 0.15 * (yy + 1)), 0, 0.09) * bk);   // the tendons running to the knuckles
+        if (col.blush !== null) {
+          c = mix(c, [152, 128, 150], 0.18 * gauss(xx - (0.12 + 0.28 * Math.sin(yy * 2.2 + 0.4)), 0, 0.06) * sstep(-0.9, -0.2, yy) * (1 - sstep(0.3, 0.7, yy)) * bk);   // a vein
+          c = mix(c, BL, 0.2 * sstep(0.5, 0.95, yy) * bk);                                                                                                                  // the knuckles' blush
+          c = shade(c, 1 - 0.16 * (gauss(yy - (0.5 + 0.12 * xx), 0, 0.06) + 0.8 * gauss(yy - (0.12 + 0.18 * xx), 0, 0.06)) * inn);                                           // the lines of the palm
+        }
+      }
       return grain(c, p);
     };
     const taper = (loc, d) => { const t = (loc[1] / (Lp * 0.5) + 1) / 2; return [loc[0] * (0.82 + 0.18 * t) + (loc[0] < 0 ? -1 : 0) * 0, loc[1], loc[2] * (1 - 0.15 * sstep(0.3, 1, t))]; };
@@ -4525,13 +4937,14 @@ const FPL = (() => {
       // start the bone a little inside the palm so it grows out of it
       const into = norm(sub(chain[0], chain[1]));
       chain[0] = add(chain[0], mul(into, r0 * 0.9));
-      const pts = smooth(chain, 3), n = pts.length;
-      const rr = pts.map((_, i) => { const t = i / (n - 1); return r0 * (K.hoof ? lerp(1, 1.12, t) : K.toes ? lerp(1, 1.06, t) : lerp(1.06, 0.82, t)) * (K.knobs && Math.abs(t - 0.36) < 0.08 ? 1.12 : 1); });
+      const pts = smooth(chain, K.skin ? 5 : 3), n = pts.length;
+      const rr = pts.map((_, i) => { const t = i / (n - 1); return r0 * (K.hoof ? lerp(1, 1.12, t) : K.toes ? lerp(1, 1.06, t) : lerp(1.06, 0.82, t)) * (K.knobs && Math.abs(t - 0.36) < 0.08 ? 1.12 : 1) * (K.skin ? 1 + 0.08 * (gauss(t, 0.07, 0.07) + gauss(t, 0.43, 0.055) + 0.8 * gauss(t, 0.76, 0.05)) : 1); });
       const fcol = (t, ca, sa, p) => {
         let c = col.fing; const palmSide = sa;   // ring frame: +sa is roughly the back of the hand
         if (K.hoof) c = col.fing; else c = mix(c, col.palm, sstep(0.2, -0.7, palmSide) * (K.pads ? 0 : 0.5));
         if (K.pads && t > 0.62 && palmSide < -0.25) c = col.pad;
         if (K.nail && t > 0.78 && palmSide > 0.35) c = col.nail;
+        if (K.skin) c = skinFing(c, t, palmSide);
         return grain(c, p);
       };
       const rings = m.tube(pts, rr, K.hoof ? 0.72 : 0.9, [-1, 0, 0], fcol, false, 'dome', 10);
@@ -4547,11 +4960,15 @@ const FPL = (() => {
     });
     // hooves: two halves, already coloured; a pair of dewclaws behind
     if (K.dew) [-0.22, 0.22].forEach(sx => { const b = [sx * W, Lp * 0.78, -Tp * 0.42]; m.tube([b, add(b, [0, Lp * 0.12, -Tp * 0.28])], [fr * 0.45, fr * 0.1], 0.8, [1, 0, 0], () => col.claw, 'dome', 'dome', 8); });
+    const thumbV0 = m.P.length / 3;
     // thumb
     if (K.thumb && K.thumb.l > 0) {
       const tr = K.thumb.r, tl = K.thumb.l, base0 = [-W * 0.22, Lp * 0.1, -Tp * 0.05], base = [-W * 0.46, Lp * 0.3, -Tp * 0.32];
       let chain;
-      if (pose.kind === 'grip') {
+      if (pose.kind === 'grip' && pose.thumb === 'fwd') {
+        const zt = anchor[2] + pr.zmax * 0.15;
+        chain = [base, [-W * 0.5, base[1] + tl * 0.5, zt - tr * 0.2], [-W * 0.5, base[1] + tl * 1.0, zt - tr * 0.2]];
+      } else if (pose.kind === 'grip') {
         const st = [base[1] - anchor[1], base[2] - anchor[2]];
         const tk = pose.tk || 1, yz = walk(pr, st, [tl * 0.55 * tk, tl * 0.45 * tk], 1, Math.min(2.6, wrapMax));
         chain = yz.map((q, i) => [base[0] + i * W * 0.12, q[0] + anchor[1], q[1] + anchor[2]]);
@@ -4573,12 +4990,56 @@ const FPL = (() => {
         m.tube([b0, p1, p2, p3], [c.r, c.r * 0.8, c.r * 0.5, c.r * 0.08], 0.85, up, (t, ca, sa, p) => grain(col.claw, p, 0.05), false, 'dome', 8);
       }
     }
-    const g = m.finish(mirror);
+    const thumbV1 = m.P.length / 3;
+    const g = m.finish(mirror); g.thumb = [thumbV0, thumbV1];
     const mx = v => (mirror ? [-v[0], v[1], v[2]] : v);
     g.anchor = mx(anchor); g.W0 = mx(W0); g.T0 = mx(T0m); g.WX = mx(wr[0].X);   // where the forearm starts, which way it leaves, its ring's x axis
     return g;
   }
   const handCache = {}, HOLDREG = {};
+  let sdfFn = null;
+  const trueS = w => { const cl = CLS_OF[w], c = WPOSE[w] ? Object.assign({}, CLS[cl], WPOSE[w]) : CLS[cl]; return c.s; };
+  // a hand built for weapon w: nothing of it may sink into the gun, and the thumb's pad is pressed against it when it is close
+  function sdfFit(g, w, hand, S) {
+    const gr = GRIPS[w][hand], L = hand === 'L', Gf = gripFrame(gr), gs = trueS(w);
+    const off = L ? add(leftHandOffset, leftHandOffsetBy[w] || [0, 0, 0]) : add(rightHandOffset, rightHandOffsetBy[w] || [0, 0, 0]), c = add(gr.h.c, off);
+    const GT = [Gf[0], Gf[3], Gf[6], Gf[1], Gf[4], Gf[7], Gf[2], Gf[5], Gf[8]], an = g.anchor, P = g.P, n = P.length / 3, I0 = g.I, MG = 0.0022, GAP = 0.03, eps = S.h * 1.25, th = g.thumb || [0, 0];
+    const Q = new Float64Array(n * 3), D = new Float64Array(n * 3), q = [0, 0, 0];
+    for (let i = 0; i < n; i++) { const v = mv(Gf, [P[i * 3] - an[0], P[i * 3 + 1] - an[1], P[i * 3 + 2] - an[2]]); Q[i * 3] = c[0] + v[0] / gs; Q[i * 3 + 1] = c[1] + v[1] / gs; Q[i * 3 + 2] = c[2] + v[2] / gs; }
+    // 1. where it sinks in, it is pushed out along the field's slope; the thumb's pad, when close, is drawn onto the surface
+    for (let i = 0; i < n; i++) {
+      q[0] = Q[i * 3]; q[1] = Q[i * 3 + 1]; q[2] = Q[i * 3 + 2]; const s0 = S.sd(q[0], q[1], q[2]);
+      if (s0 < MG) { S.pushOut(q, MG); D[i * 3] = q[0] - Q[i * 3]; D[i * 3 + 1] = q[1] - Q[i * 3 + 1]; D[i * 3 + 2] = q[2] - Q[i * 3 + 2]; }
+      else if (i >= th[0] && i < th[1] && s0 < GAP) {
+        const gx = S.sd(q[0] + eps, q[1], q[2]) - S.sd(q[0] - eps, q[1], q[2]), gy = S.sd(q[0], q[1] + eps, q[2]) - S.sd(q[0], q[1] - eps, q[2]), gz = S.sd(q[0], q[1], q[2] + eps) - S.sd(q[0], q[1], q[2] - eps), l = Math.hypot(gx, gy, gz);
+        if (l > 1e-9) { const wgt = Math.min(1, (GAP - s0) / (GAP * 0.5)), k = -(s0 - MG) * wgt / l; D[i * 3] = gx * k; D[i * 3 + 1] = gy * k; D[i * 3 + 2] = gz * k; }
+      }
+    }
+    // 2. smooth the pushes over the surface (so the skin stays a skin), then push again what still sinks in
+    const nb = Array.from({ length: n }, () => []);
+    for (let t = 0; t < I0.length; t += 3) for (let e = 0; e < 3; e++) { const a = I0[t + e], b = I0[t + (e + 1) % 3]; nb[a].push(b); nb[b].push(a); }
+    const D2 = new Float64Array(n * 3);
+    for (let round = 0; round < 3; round++) {
+      for (let it = 0; it < 2; it++) {
+        for (let i = 0; i < n; i++) { const l = nb[i]; let sx = 0, sy = 0, sz = 0; for (const j of l) { sx += D[j * 3]; sy += D[j * 3 + 1]; sz += D[j * 3 + 2]; } const k = l.length || 1; D2[i * 3] = D[i * 3] * 0.4 + sx / k * 0.6; D2[i * 3 + 1] = D[i * 3 + 1] * 0.4 + sy / k * 0.6; D2[i * 3 + 2] = D[i * 3 + 2] * 0.4 + sz / k * 0.6; }
+        D.set(D2);
+      }
+      for (let i = 0; i < n; i++) {
+        q[0] = Q[i * 3] + D[i * 3]; q[1] = Q[i * 3 + 1] + D[i * 3 + 1]; q[2] = Q[i * 3 + 2] + D[i * 3 + 2];
+        if (S.sd(q[0], q[1], q[2]) < MG) { S.pushOut(q, MG); D[i * 3] = q[0] - Q[i * 3]; D[i * 3 + 1] = q[1] - Q[i * 3 + 1]; D[i * 3 + 2] = q[2] - Q[i * 3 + 2]; }
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      if (!(D[i * 3] || D[i * 3 + 1] || D[i * 3 + 2])) continue;
+      const d = mv(GT, [(Q[i * 3] + D[i * 3] - c[0]) * gs, (Q[i * 3 + 1] + D[i * 3 + 1] - c[1]) * gs, (Q[i * 3 + 2] + D[i * 3 + 2] - c[2]) * gs]); P[i * 3] = an[0] + d[0]; P[i * 3 + 1] = an[1] + d[1]; P[i * 3 + 2] = an[2] + d[2];
+    }
+    const N = g.N, I = g.I; N.fill(0);
+    for (let t = 0; t < I.length; t += 3) {
+      const a = I[t] * 3, b = I[t + 1] * 3, cc = I[t + 2] * 3, e1 = [P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]], e2 = [P[cc] - P[a], P[cc + 1] - P[a + 1], P[cc + 2] - P[a + 2]], nn = cross(e1, e2);
+      for (const vv of [a, b, cc]) { N[vv] += nn[0]; N[vv + 1] += nn[1]; N[vv + 2] += nn[2]; }
+    }
+    for (let i = 0; i < N.length; i += 3) { const l = Math.hypot(N[i], N[i + 1], N[i + 2]) || 1; N[i] /= l; N[i + 1] /= l; N[i + 2] /= l; }
+  }
   const regHold = (id, hd, slot) => { HOLDREG[id] = hd; hd.w = slot; for (const k in handCache) if (k.endsWith('|x' + id)) delete handCache[k]; };
   // key: char | side | what it is holding  (w5R = right hand on weapon 5, open, fist)
   function handGeom(key) {
@@ -4591,9 +5052,11 @@ const FPL = (() => {
     else if (what[0] === 'm') { const w = +what.slice(1), gr = MAGH[w], cls = CLS[CLS_OF[w]]; pose = { kind: 'grip', h: gr.h, M: gripFrame(gr), gs: cls.s, y: gr.y, wrap: gr.wrap, dev: gr.dev, tk: gr.tk }; }
     else {
       const w = +what.slice(1, -1), hand = what.slice(-1), gr = GRIPS[w][hand], cls = CLS[CLS_OF[w]];
-      pose = { kind: 'grip', h: gr.h, M: gripFrame(gr), gs: cls.s, y: gr.y, wrap: gr.wrap, x: gr.x, dev: gr.dev, tk: gr.tk };
+      pose = { kind: 'grip', h: gr.h, M: gripFrame(gr), gs: gr.gs || trueS(w), y: gr.y, wrap: gr.wrap, x: gr.x, dev: gr.dev, tk: gr.tk, thumb: gr.thumb, hs: gr.hs };
     }
-    return handCache[key] = buildHand(id, pose, L);
+    const hg = buildHand(id, pose, L);
+    { const mm_ = /\|w(\d+)([RL])$/.exec(key); if (mm_ && sdfFn) { const S = sdfFn(+mm_[1]); if (S) sdfFit(hg, +mm_[1], mm_[2], S); } }
+    return handCache[key] = hg;
   }
   // two-handed melee weapons: turn the left hand round the handle until its forearm points the way ELBOW asks (worked out once per weapon)
   const autoDone = {};
@@ -4647,8 +5110,8 @@ const FPL = (() => {
     const K = kitOf(id), A = K.arm, sc = a.sc;
     const fl = fluffCache[id] || (fluffCache[id] = Array.from({ length: NR * NS }, (_, j) => 1 + (hash3([j * 0.37, j * 1.13, 7.1]) - 0.5) * 2 * (A.fluff || 0)));
     const p0 = a.wrist, p3 = a.elbow, L = len(sub(p3, p0)), dirE = norm(sub(p3, p0));
-    const f = clamp(0.25 + dot(a.T0, dirE), 0, 1);
-    const p1 = add(p0, mul(a.T0, L * 0.38 * f)), p2 = add(p3, mul(sub(p1, p3), 0.3));
+    const dT = dot(a.T0, dirE), Ts = norm(mix3(a.T0, dirE, clamp((0.85 - dT) * 2.2, 0, 0.9)));      // a wrist that points somewhere odd is bent toward the elbow, not left to arch
+    const p1 = add(p0, mul(Ts, L * 0.38)), p2 = add(p3, mul(sub(p1, p3), 0.3));
     let X = a.X;
     for (let i = 0; i < NR; i++) {
       const t = Math.pow(i / (NR - 1), 1.25), u = 1 - t;
@@ -4707,6 +5170,11 @@ const FPL = (() => {
           const pr = [cls.p[0] * ak + hip[0] + (rp ? rp[3] : 0), cls.p[1] + hip[1] + (rp ? rp[4] : 0), cls.p[2] + hip[2] + (rp ? rp[5] : 0)];
           const rx = cls.rx + HIP_R[0] + dd.rx + kick * 0.34 - chop * 0.5 - (tilt ? tilt[1] : 0) + (rp ? rp[1] : 0), rz = cls.rz + dd.rz + (tilt ? tilt[0] : 0) + (rp ? rp[0] : 0), ry = PI + cls.ry + HIP_R[1] + dd.ry + (rp ? rp[2] : 0);
           R = rotM(rx, ry, rz);
+          if (cls.aim !== false && !thrP) {                 // aim the barrel at the crosshair (the hand does not move: the gun turns about its grip)
+            const R0 = rotM(cls.rx + HIP_R[0], PI + cls.ry + HIP_R[1], cls.rz), p0 = [cls.p[0] * ak + hh[0] * hsk, cls.p[1] + hh[1], cls.p[2] + hh[2]];
+            const R1 = aimFix(R0, p0, G.R.h.c, s, o.w);
+            R = mm(mm(R1, [R0[0], R0[3], R0[6], R0[1], R0[4], R0[7], R0[2], R0[5], R0[8]]), R);
+          }
           const gR = mv(R, mul(G.R.h.c, s));
           pos = [pr[0] - gR[0], pr[1] - gR[1], pr[2] - gR[2] + kick * 0.055 - chop * 0.05];
         }
@@ -4716,6 +5184,7 @@ const FPL = (() => {
         for (const [k, hn] of [[0, 'R'], [1, 'L']]) {
           const gr = G[hn]; if (!gr) continue;
           const L = hn === 'L';
+          if (L && gr.solo && !(rl && rl.k > 0.001)) continue;               // a one-handed gun: the left hand rests (below) until a reload needs it
           let key = thrP && thrP.open && !L ? `${id}|R|open` : `${id}|${hn}|w${o.w}${hn}`, Rh = mm(R, gripFrame(gr));
           let c = add(gr.h.c, L ? add(leftHandOffset, leftHandOffsetBy[o.w] || [0, 0, 0]) : add(rightHandOffset, rightHandOffsetBy[o.w] || [0, 0, 0]));
           if (L && lOff) c = add(c, lOff);
@@ -4734,9 +5203,12 @@ const FPL = (() => {
           const org = sub(toCam(c), mv(Rh, mul(g.anchor, sk)));
           res[k] = [key, Rh, org];
         }
-        if (!G.L && FREE[cl]) {
+        if ((!G.L || G.L.solo) && FREE[cl]) {
           const fr = FREE[cl], Rh = frameFB(fr.f, fr.b), lf = thrP ? thrP.lift : 0, p = [fr.p[0] * ak + hip[0] + 0.06 * lf, fr.p[1] + hip[1] + 0.06 * lf, fr.p[2] + hip[2] - 0.05 * lf];
-          res[1] = [`${id}|L|${fr.pose}`, Rh, p];
+          if (G.L && res[1]) {                          // a one-handed gun's reload: the left hand comes in from its resting place as the gun swings into the reload pose, and goes back
+            const b = 1 - sg_(clamp((rl.k - 0.05) / 0.6, 0, 1));
+            if (b > 0) res[1] = [b > 0.5 ? `${id}|L|${fr.pose}` : res[1][0], slerpM(res[1][1], Rh, b), mix3(res[1][2], p, b)];
+          } else res[1] = [`${id}|L|${fr.pose}`, Rh, p];
         }
       } else {
         const pn = punch || 0;
@@ -4758,12 +5230,16 @@ const FPL = (() => {
       const D = (ELBOW[cl] || ELBOW.rifle)[k];
       const eRest = add(hro.wrist, mul(norm(add(hro.T0, mul(norm(D), 1.2))), K.arm.Lf * sk * 1.28 * (1 + 0.5 * clamp(1.5 - o.aspect, 0, 1))));   // tall screens show more below the hands: longer forearms
       ho.elbow = add(eRest, mul(sub(ho.wrist, hro.wrist), 0.6));
+      { const dv = sub(ho.elbow, ho.wrist), Lq = len(dv); let d = mul(dv, 1 / (Lq || 1));
+        if (d[2] > 0.42) { const sx = Math.sqrt(1 - 0.42 * 0.42) / (Math.hypot(d[0], d[1]) || 1); d = [d[0] * sx, d[1] * sx, 0.42]; }        // not straight at the eye: the elbow stays out in front of the face
+        if (d[1] > -0.3 && Math.abs(d[0]) < 0.8) { const rest = Math.sqrt(Math.max(0.01, 1 - 0.09)); const sx = rest / (Math.hypot(d[0], d[2]) || 1); d = [d[0] * sx, -0.3, d[2] * sx]; }   // and below the hand, not above it
+        ho.elbow = add(ho.wrist, mul(d, Lq)); }
       out.hands[k] = ho;
     }
     return out;
   }
   const clearCache = () => { for (const k in handCache) delete handCache[k]; for (const k in autoDone) delete autoDone[k]; };
-  return { WPOSE, H: { Hd, pistolGrip, RGRIP, UNDER, LSIDE, SIDE, CUP }, clearCache, regHold, layout, m2q, handGeom, armPose, armColors, armIndex, NR, NS, rotM, mv, CLS, CLS_OF, GRIPS, KITS, FREE, vmTan, gripFrame, profile, MAGH, MAGS, RL_POSE, reloadHand, THROW, throwPose };
+  return { setSdfFn: f => { sdfFn = f; }, sdfChanged: w => { for (const k in handCache) if (new RegExp('\\|w' + w + '[RL]$').test(k)) delete handCache[k]; }, ELBOW, WPOSE, H: { Hd, pistolGrip, RGRIP, UNDER, LSIDE, SIDE, CUP }, clearCache, regHold, layout, m2q, handGeom, armPose, armColors, armIndex, NR, NS, rotM, mv, CLS, CLS_OF, GRIPS, KITS, FREE, vmTan, gripFrame, profile, MAGH, MAGS, RL_POSE, reloadHand, THROW, throwPose };
 })();
 
 // First-person viewmodel: your weapon (or your fists) in front of the camera.
@@ -4773,6 +5249,87 @@ const vm = new THREE.Group(); vm.visible = false; scene.add(vm);
 const vmLight = new THREE.PointLight(0xfff2dd, 0.55, 1.2); vmLight.position.set(0, 0.25, 0.1); vm.add(vmLight);   // soft fill so the gun reads in shade
 const vmGunHolder = new THREE.Group(); vm.add(vmGunHolder);   // holds the gun; FPL places it
 const vmGunCache = {};
+// GunSDF: a signed distance field (voxels) of a gun's surface, so a hand or forearm can be kept out of it.
+// tris: Float32Array, 9 numbers per triangle, in the gun's own space. Returns { sd(x,y,z), push(p, margin) } or null.
+const GunSDF = (() => {
+  function build(tris) {
+    const nT = Math.floor(tris.length / 9); if (!nT) return null;
+    let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+    for (let i = 0; i < nT * 9; i += 3) for (let k = 0; k < 3; k++) { const v = tris[i + k]; if (v < mn[k]) mn[k] = v; if (v > mx[k]) mx[k] = v; }
+    const ext = [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]], big = Math.max(ext[0], ext[1], ext[2]);
+    const h = Math.min(0.008, Math.max(0.0035, big / 150)), pad = 4, org = [mn[0] - pad * h, mn[1] - pad * h, mn[2] - pad * h];
+    const nx = Math.ceil(ext[0] / h) + 2 * pad + 1, ny = Math.ceil(ext[1] / h) + 2 * pad + 1, nz = Math.ceil(ext[2] / h) + 2 * pad + 1, N = nx * ny * nz;
+    const surf = new Uint8Array(N), id = (x, y, z) => (z * ny + y) * nx + x, step = h * 0.45;
+    const mark = (px, py, pz) => { const x = Math.floor((px - org[0]) / h), y = Math.floor((py - org[1]) / h), z = Math.floor((pz - org[2]) / h); if (x >= 0 && y >= 0 && z >= 0 && x < nx && y < ny && z < nz) surf[id(x, y, z)] = 1; };
+    for (let t = 0; t < nT; t++) {
+      const o = t * 9, ax = tris[o], ay = tris[o + 1], az = tris[o + 2], bx = tris[o + 3] - ax, by = tris[o + 4] - ay, bz = tris[o + 5] - az, cx = tris[o + 6] - ax, cy = tris[o + 7] - ay, cz = tris[o + 8] - az;
+      const lb = Math.hypot(bx, by, bz), lc = Math.hypot(cx, cy, cz), n = Math.max(1, Math.ceil(Math.max(lb, lc) / step));
+      for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) { const u = i / n, v = j / n; mark(ax + u * bx + v * cx, ay + u * by + v * cy, az + u * bz + v * cz); }
+    }
+    // the outside: a flood from the border through empty voxels
+    const out = new Uint8Array(N), q = new Int32Array(N); let qh = 0, qt = 0;
+    const push = i => { if (!out[i] && !surf[i]) { out[i] = 1; q[qt++] = i; } };
+    for (let z = 0; z < nz; z++) for (let y = 0; y < ny; y++) { push(id(0, y, z)); push(id(nx - 1, y, z)); }
+    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) { push(id(x, 0, z)); push(id(x, ny - 1, z)); }
+    for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { push(id(x, y, 0)); push(id(x, y, nz - 1)); }
+    while (qh < qt) { const i = q[qh++], x = i % nx, y = ((i / nx) | 0) % ny, z = (i / (nx * ny)) | 0;
+      if (x > 0) push(i - 1); if (x < nx - 1) push(i + 1); if (y > 0) push(i - nx); if (y < ny - 1) push(i + nx); if (z > 0) push(i - nx * ny); if (z < nz - 1) push(i + nx * ny); }
+    // exact distance to the nearest surface voxel (Felzenszwalb), squared, in voxels
+    const INF = 1e12, D = new Float64Array(N); for (let i = 0; i < N; i++) D[i] = surf[i] ? 0 : INF;
+    const M = Math.max(nx, ny, nz), f = new Float64Array(M), d = new Float64Array(M), v = new Int32Array(M), z_ = new Float64Array(M + 1);
+    const edt = (len, get, set) => { let k = 0; v[0] = 0; z_[0] = -INF; z_[1] = INF;
+      for (let qi = 1; qi < len; qi++) { let s; for (;;) { const p = v[k]; s = ((f[qi] + qi * qi) - (f[p] + p * p)) / (2 * qi - 2 * p); if (s <= z_[k] && k > 0) k--; else break; } k++; v[k] = qi; z_[k] = s; z_[k + 1] = INF; }
+      k = 0; for (let qi = 0; qi < len; qi++) { while (z_[k + 1] < qi) k++; const p = v[k]; d[qi] = (qi - p) * (qi - p) + f[p]; } for (let qi = 0; qi < len; qi++) set(qi, d[qi]); };
+    for (let z = 0; z < nz; z++) for (let y = 0; y < ny; y++) { const b = id(0, y, z); for (let x = 0; x < nx; x++) f[x] = D[b + x]; edt(nx, null, (i, val) => { D[b + i] = val; }); }
+    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) { for (let y = 0; y < ny; y++) f[y] = D[id(x, y, z)]; edt(ny, null, (i, val) => { D[id(x, i, z)] = val; }); }
+    for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { for (let z = 0; z < nz; z++) f[z] = D[id(x, y, z)]; edt(nz, null, (i, val) => { D[id(x, y, i)] = val; }); }
+    const S = new Float32Array(N);
+    for (let i = 0; i < N; i++) { if (surf[i]) { S[i] = 0; continue; } const dd = (Math.sqrt(D[i]) - 0.5) * h; S[i] = out[i] ? dd : -dd; }
+    { // one soft blur so the field has no voxel-sized steps (the hands are pushed along its slope)
+      const T = new Float32Array(N);
+      for (let pass = 0; pass < 3; pass++) {
+        const A = pass === 1 ? T : S, B = pass === 1 ? S : T, st = pass === 0 ? 1 : pass === 1 ? nx : nx * ny, len = pass === 0 ? nx : pass === 1 ? ny : nz;
+        for (let i = 0; i < N; i++) { const c = pass === 0 ? i % nx : pass === 1 ? ((i / nx) | 0) % ny : (i / (nx * ny)) | 0; const a = c > 0 ? A[i - st] : A[i], b = c < len - 1 ? A[i + st] : A[i]; B[i] = 0.25 * a + 0.5 * A[i] + 0.25 * b; }
+        if (pass === 0) { /* x blurred into T */ } if (pass === 1) { /* y blurred T -> S */ } if (pass === 2) { S.set(T); }
+      }
+    }
+    const far = 0.5;
+    const sd = (x, y, z) => {
+      const fx = (x - org[0]) / h - 0.5, fy = (y - org[1]) / h - 0.5, fz = (z - org[2]) / h - 0.5;
+      if (fx < 0 || fy < 0 || fz < 0 || fx > nx - 1.001 || fy > ny - 1.001 || fz > nz - 1.001) {          // outside the grid: distance to the box
+        const cx = Math.min(Math.max(x, org[0]), org[0] + nx * h), cy = Math.min(Math.max(y, org[1]), org[1] + ny * h), cz = Math.min(Math.max(z, org[2]), org[2] + nz * h);
+        return Math.hypot(x - cx, y - cy, z - cz) + 2 * pad * h * 0.5; }
+      const ix = Math.floor(fx), iy = Math.floor(fy), iz = Math.floor(fz), tx = fx - ix, ty = fy - iy, tz = fz - iz, b = id(ix, iy, iz);
+      const c000 = S[b], c100 = S[b + 1], c010 = S[b + nx], c110 = S[b + nx + 1], c001 = S[b + nx * ny], c101 = S[b + nx * ny + 1], c011 = S[b + nx * ny + nx], c111 = S[b + nx * ny + nx + 1];
+      const c00 = c000 + (c100 - c000) * tx, c10 = c010 + (c110 - c010) * tx, c01 = c001 + (c101 - c001) * tx, c11 = c011 + (c111 - c011) * tx;
+      const c0 = c00 + (c10 - c00) * ty, c1 = c01 + (c11 - c01) * ty; return c0 + (c1 - c0) * tz;
+    };
+    // moves p (a 3-array) out so that it is at least `margin` from the surface; returns how far it moved
+    const eps = h * 1.25;
+    const pushOut = (p, margin) => { let moved = 0;
+      for (let it = 0; it < 3; it++) { const s = sd(p[0], p[1], p[2]); if (s >= margin) break;
+        let gx = sd(p[0] + eps, p[1], p[2]) - sd(p[0] - eps, p[1], p[2]), gy = sd(p[0], p[1] + eps, p[2]) - sd(p[0], p[1] - eps, p[2]), gz = sd(p[0], p[1], p[2] + eps) - sd(p[0], p[1], p[2] - eps);
+        const l = Math.hypot(gx, gy, gz); if (l < 1e-9) break; const k = (margin - s) / l; p[0] += gx * k; p[1] += gy * k; p[2] += gz * k; moved += margin - s; }
+      return moved; };
+    return { sd, pushOut, h, dims: [nx, ny, nz], org, nT };
+  }
+  return { build };
+})();
+
+function gunSdfFor(w, g) {          // built once per gun model: every hand and forearm is kept out of it
+  if (g.userData.sdf !== undefined) return g.userData.sdf;
+  g.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), arr = [], v = new THREE.Vector3();
+  g.traverse(o => { if (!o.isMesh) return; let p = o, vis = true; while (p && p !== g.parent) { if (p.visible === false) { vis = false; break; } p = p.parent; } if (!vis) return;
+    const ge = o.geometry, pos = ge.attributes.position, idx = ge.index, m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld), n = idx ? idx.count : pos.count;
+    const get = i => { v.fromBufferAttribute(pos, i).applyMatrix4(m); return [v.x, v.y, v.z]; };
+    for (let t = 0; t + 2 < n; t += 3) { const A = get(idx ? idx.getX(t) : t), B = get(idx ? idx.getX(t + 1) : t + 1), C = get(idx ? idx.getX(t + 2) : t + 2); arr.push(A[0], A[1], A[2], B[0], B[1], B[2], C[0], C[1], C[2]); } });
+  const S = arr.length ? GunSDF.build(new Float32Array(arr)) : null;
+  g.userData.sdf = S; FPL.sdfChanged(w);
+  if (fpArms) { for (const k in fpArms.geos) if (new RegExp('\\|w' + w + '[RL]$').test(k)) { fpArms.geos[k].dispose(); delete fpArms.geos[k]; } for (const p of fpArms.parts) p.key = null; }
+  return S;
+}
+FPL.setSdfFn(w => { const g = vmGunCache[w]; return g && g.userData.sdf || null; });
 let vmWeapon = -2, vmChar = -1, vmFlash = null;
 function vmNoShadow(g) { g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; } }); }
 function syncVm() {
@@ -4786,6 +5343,7 @@ function syncVm() {
     vmGunHolder.add(g);
     vmFlash = g.userData.flash || null;
     if (vmFlash) vmFlash.visible = false;
+    gunSdfFor(w, g);
   }
   vmWeapon = w; vmChar = me.char;
 }
@@ -4802,8 +5360,46 @@ function fpHandGeo(key) {
   g.computeBoundingSphere();
   return c[key] = g;
 }
+const FP_NOISE = 'float fpH(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }\n' +
+  'float fpN(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);\n' +
+  ' return mix(mix(mix(fpH(i), fpH(i + vec3(1.0,0.0,0.0)), f.x), mix(fpH(i + vec3(0.0,1.0,0.0)), fpH(i + vec3(1.0,1.0,0.0)), f.x), f.y),\n' +
+  '  mix(mix(fpH(i + vec3(0.0,0.0,1.0)), fpH(i + vec3(1.0,0.0,1.0)), f.x), mix(fpH(i + vec3(0.0,1.0,1.0)), fpH(i + vec3(1.0,1.0,1.0)), f.x), f.y), f.z); }\n';
+const FP_SKIN_ALB = '{ float n1 = fpN(vFpP * 64.0), n2 = fpN(vFpP * 180.0), n3 = fpN(vFpP * 420.0);\n' +
+  ' diffuseColor.rgb *= 1.0 + (n1 - 0.5) * 0.12 + (n2 - 0.5) * 0.07 + (n3 - 0.5) * 0.04;\n' +
+  ' diffuseColor.rgb *= mix(vec3(1.0), vec3(1.05, 0.95, 0.92), smoothstep(0.35, 0.75, n1)); }\n';
+const FP_SKIN_FIN = '{ vec3 N = normalize(vFpN), V = normalize(vFpV);\n' +
+  ' float ndv = clamp(dot(N, V), 0.0, 1.0), fr = pow(1.0 - ndv, 2.4);\n' +
+  ' float lit = clamp(dot(vLightFront + vIndirectFront, vec3(0.3333)), 0.0, 1.0);\n' +
+  ' vec3 sss = diffuseColor.rgb * vec3(1.0, 0.40, 0.28);\n' +
+  ' outgoingLight += sss * (0.10 + 0.55 * fr) * (0.25 + 0.5 * lit);\n' +                                   // the warm glow of blood through thin edges and shadow
+  ' vec3 Hh = normalize(normalize(vec3(-0.35, 0.65, 0.7)) + V);\n' +
+  ' float sp = pow(max(dot(N, Hh), 0.0), 18.0), sp2 = pow(max(dot(N, Hh), 0.0), 90.0);\n' +
+  ' outgoingLight += vec3(1.0, 0.93, 0.86) * (sp * 0.07 + sp2 * 0.10) * lit; }\n';                          // a soft sheen, not a plastic glint
+const FP_CLOTH_ALB = '{ float w1 = fpN(vec3(vFpP.xy * 3.0, vFpP.z * 26.0)), w2 = fpN(vec3(vFpP.xy * 7.0 + 3.0, vFpP.z * 70.0)), w3 = fpN(vFpP * 150.0);\n' +
+  ' diffuseColor.rgb *= 1.0 + (w1 - 0.5) * 0.22 + (w2 - 0.5) * 0.12 + (w3 - 0.5) * 0.08;\n' +
+  ' float wv = 0.5 + 0.5 * sin(vFpP.z * 220.0) * sin(atan(vFpP.y, vFpP.x) * 28.0); diffuseColor.rgb *= 0.97 + 0.06 * wv; }\n';
+const FP_CLOTH_FIN = '{ vec3 N = normalize(vFpN), V = normalize(vFpV);\n' +
+  ' float ndv = clamp(dot(N, V), 0.0, 1.0), fr = pow(1.0 - ndv, 3.0);\n' +
+  ' float lit = clamp(dot(vLightFront + vIndirectFront, vec3(0.3333)), 0.0, 1.0);\n' +
+  ' outgoingLight += diffuseColor.rgb * fr * 0.25 * (0.3 + lit);\n' +                                       // the soft fuzz at the edge of a sleeve
+  ' outgoingLight *= 0.92 + 0.08 * ndv; }\n';
+function fpSkinMat(kind) {                                                // hands: skin; forearms: cloth. Lambert lighting plus a few per-pixel touches
+  const cloth = kind === 'cloth', armUV = cloth || kind === 'skinarm', m = new THREE.MeshLambertMaterial({ vertexColors: true });
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFpP;\nvarying vec3 vFpN;\nvarying vec3 vFpV;\n' + (armUV ? 'attribute vec2 fpuv;\n' : ''))
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + (armUV ? 'float fpa = fpuv.y * 6.2831853; vFpP = vec3(cos(fpa), sin(fpa), fpuv.x) * ' + (cloth ? '1.0' : 'vec3(0.2, 0.2, 1.0)') + ';\n' : 'vFpP = position;\n'))
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvFpN = normalize(normalMatrix * objectNormal);\nvFpV = -mvPosition.xyz;\n');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFpP;\nvarying vec3 vFpN;\nvarying vec3 vFpV;\n' + FP_NOISE)
+      .replace('#include <color_fragment>', '#include <color_fragment>\n' + (cloth ? FP_CLOTH_ALB : FP_SKIN_ALB))
+      .replace('#include <envmap_fragment>', '#include <envmap_fragment>\n' + (cloth ? FP_CLOTH_FIN : FP_SKIN_FIN));
+  };
+  m.customProgramCacheKey = () => 'tt-fp-' + kind;
+  return m;
+}
 function buildFpArms() {
-  const id = CH[me.char].id, mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const id = CH[me.char].id, skinK = !!FPL.KITS[id] && !!FPL.KITS[id].skin, mat = skinK ? fpSkinMat('skin') : new THREE.MeshLambertMaterial({ vertexColors: true }), amat = skinK ? fpSkinMat(FPL.KITS[id].arm.skinArm ? 'skinarm' : 'cloth') : mat;
   const nv = FPL.NR * FPL.NS, idx = FPL.armIndex();
   const parts = [0, 1].map(() => {
     const hand = new THREE.Mesh(new THREE.BufferGeometry(), mat);
@@ -4812,17 +5408,18 @@ function buildFpArms() {
     const pa = new THREE.BufferAttribute(P, 3), na = new THREE.BufferAttribute(N, 3);
     if (pa.setUsage) { pa.setUsage(THREE.DynamicDrawUsage); na.setUsage(THREE.DynamicDrawUsage); }
     ag.setAttribute('position', pa); ag.setAttribute('normal', na); ag.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); ag.setIndex(new THREE.BufferAttribute(idx, 1));
-    const arm = new THREE.Mesh(ag, mat); arm.frustumCulled = false; arm.castShadow = false; arm.receiveShadow = false; arm.visible = false; vm.add(arm);
+    { const uv = new Float32Array(nv * 2); for (let i = 0; i < FPL.NR; i++) for (let k = 0; k < FPL.NS; k++) { uv[(i * FPL.NS + k) * 2] = Math.pow(i / (FPL.NR - 1), 1.25); uv[(i * FPL.NS + k) * 2 + 1] = k / FPL.NS; } ag.setAttribute('fpuv', new THREE.BufferAttribute(uv, 2)); }
+    const arm = new THREE.Mesh(ag, amat); arm.frustumCulled = false; arm.castShadow = false; arm.receiveShadow = false; arm.visible = false; vm.add(arm);
     return { hand, arm, ag, P, N, key: null, zs: 0 };
   });
-  fpArms = { char: me.char, id, parts, mat, geos: {} };
+  fpArms = { char: me.char, id, parts, mat, amat, geos: {} };
 }
 function ensureFpArms() {
   if (fpArms && fpArms.char === me.char) return;
   if (fpArms) {
     for (const p of fpArms.parts) { vm.remove(p.hand); vm.remove(p.arm); p.ag.dispose(); }
     for (const k in fpArms.geos) fpArms.geos[k].dispose();
-    fpArms.mat.dispose(); fpArms = null;
+    fpArms.mat.dispose(); if (fpArms.amat && fpArms.amat !== fpArms.mat) fpArms.amat.dispose(); fpArms = null;
   }
   buildFpArms();
 }
@@ -4856,7 +5453,7 @@ function updateFpView(kick, chop, dyn) {
     const it = GRIP_IDLE[w] && T && T[GRIP_IDLE[w]];
     if (it) lOff = [it.position.x, it.position.y, it.position.z];          // the left hand rides the shotgun's pump
     if ((sq.rlK || 0) > 0.001) rl = { p: sq.rlP || 0, k: sq.rlK };           // reloading: how far through it, and how far the gun has swung into its reload pose
-    if (rl && sq.rlS) { const S = sq.rlS, on = sq.rlT >= 0, ts = Math.max(0, sq.rlT); rlxReg(S); rl.gp = rlxGun(S, ts); rl.hf = c => on ? rlxHand(S, S.L, ts, src, c) : null; rl.hr = S.R ? c => on ? rlxHand(S, S.R, ts, src, c) : null : null; }
+    if (rl && sq.rlS) { const S0 = sq.rlS, S = S0.fp ? (S0.fpS || (S0.fpS = Object.assign({}, S0, S0.fp))) : S0, on = sq.rlT >= 0, ts = Math.max(0, sq.rlT); rlxReg(S); rl.gp = rlxGun(S, ts); rl.hf = c => on ? rlxHand(S, S.L, ts, src, c) : null; rl.hr = S.R ? c => on ? rlxHand(S, S.R, ts, src, c) : null : null; }
   }
   const id = CH[me.char].id;
   const lay = FPL.layout({ id, w: g ? w : -1, aspect: camera.aspect, fov: camera.fov, dyn, kick, chop, tilt: null, punch: sq ? (sq.atk || 0) : 0, lOff, rl,
@@ -4869,6 +5466,7 @@ function updateFpView(kick, chop, dyn) {
   if (g) vmGunHolder.visible = !lay.hideGun;                                // a grenade that has just been let go is not in the hand any more
   fpPose = lay.gun && g ? { w, q: lay.gun.quat, s: lay.gun.scale, px: lay.gun.pos[0], py: lay.gun.pos[1], pz: lay.gun.pos[2], k: lay.vmK } : null;   // where the gun is in front of the camera: shots and casings start from it
   if (!fpArms) return;
+  const gSdf = g && g.userData.sdf, gMat = lay.gun ? new THREE.Matrix4().fromArray(lay.gun.m) : null, gInv = gMat ? new THREE.Matrix4().copy(gMat).invert() : null;
   for (let k = 0; k < 2; k++) {
     const p = fpArms.parts[k], h = lay.hands[k];
     if (!h) { p.hand.visible = p.arm.visible = false; continue; }
@@ -4876,6 +5474,7 @@ function updateFpView(kick, chop, dyn) {
     if (p.zs !== h.zs) { const ca = p.ag.getAttribute('color'); ca.array.set(FPL.armColors(id, h.zs)); ca.needsUpdate = true; p.zs = h.zs; }
     p.hand.matrix.fromArray(h.m); p.hand.matrixWorldNeedsUpdate = true;
     FPL.armPose(id, h, p.P, p.N);
+    if (gSdf && lay.gun && !lay.hideGun) { const Pv = p.P, vv = new THREE.Vector3(), q3 = [0, 0, 0]; for (let i = 0; i < Pv.length; i += 3) { vv.set(Pv[i], Pv[i + 1], Pv[i + 2]).applyMatrix4(gInv); q3[0] = vv.x; q3[1] = vv.y; q3[2] = vv.z; if (gSdf.pushOut(q3, 0.003)) { vv.set(q3[0], q3[1], q3[2]).applyMatrix4(gMat); Pv[i] = vv.x; Pv[i + 1] = vv.y; Pv[i + 2] = vv.z; } } }
     p.ag.getAttribute('position').needsUpdate = true; p.ag.getAttribute('normal').needsUpdate = true;
     p.hand.visible = p.arm.visible = true;
   }
@@ -5020,13 +5619,17 @@ const ARS_X_DEFS = {
    A slot left out (null) keeps the Classic hold. */
 const ARS_HOLD = (() => {
   const { Hd, pistolGrip, RGRIP, CUP } = FPL.H;
-  const pist = (c, th, hu, hv) => RGRIP(c, th, hu, hv, { dev: [0.08, 0.1] });
-  const wrapL = (c, th, hu, hv) => ({ h: pistolGrip([c[0] + 0.004, c[1] - 0.02, c[2] + 0.025], th, hu * 1.5, hv * 1.35), f: [-0.36, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52, dev: [0.05, 0.1] });
+  const pist = (c, th, hu, hv) => RGRIP([c[0], c[1] + 0.02, c[2]], th, hu, hv, { dev: [0.5, 0.1], thumb: 'fwd', y: 0.78, hs: 1.15 });
+  const wrapL = (c, th, hu, hv) => ({ h: pistolGrip([c[0] + 0.004, c[1] - 0.02, c[2] + 0.025], th, hu * 1.5, hv * 1.35), f: [-0.36, -0.2, 1], b: [1, -0.1, 0.35], y: 0.52, dev: [0.05, 0.1], solo: true });
   const hand2 = (c, th, hu, hv, tpL, wp) => ({ cls: 'pistol', ref: 0, wp, R: pist(c, th, hu, hv), L: wrapL(c, th, hu, hv), tpL });      // a pistol held in both hands, the left wrapped round the right
   const upL = { f: [0.2, 0, 1], b: [1, -0.1, -0.2], y: 0.55 };                                                                       // the left hand round an upright grip
   const ball = (c, r, f, b, wrap) => ({ h: Hd(c, [0, 1, 0], [1, 0, 0], r, r, r), f, b, y: 0.5, wrap });
   const rifle = (cls, ref, R, L, tpL, wp, refL) => ({ cls, ref, wp, R, L, tpL, refL });
+  const M72S = 0.75;    // the M72 as the first-person view draws it (the hands are shaped to its grips at this scale)
   return {
+    classic: [null, null,
+      Object.assign(rifle('heavy', 2, RGRIP([0, -0.135, -0.085], 0.37, 0.019, 0.024, { gs: M72S }), RGRIP([0, -0.15, 0.3], 0, 0.017, 0.021, { f: [0.2, 0, 1], b: [1, -0.1, -0.2], y: 0.55, gs: M72S }), null, { p: [0.14, -0.12, -0.40], s: M72S, ry: 0.06, rx: 0.04 }), { sh: [-0.043, -0.14, 0.055, 0.1], need: 1 }),
+      ...Array(12).fill(null)],                                                                                                    // 2 Rocket: the M72 has a pistol grip under the rear and an upright grip under the middle (added to the model); the tube lies on the right shoulder (sh = where it rests, and its radius)
     western: [
       hand2([0, -0.085, -0.015], 0.35, 0.022, 0.029, [0.02, -0.125, -0.01]),                                                                   // 0 Peacemaker
       hand2([0, -0.08, 0.04], 0.5, 0.023, 0.03, [0.02, -0.115, 0.05]),                                                                          // 1 Pepperbox
@@ -5069,7 +5672,7 @@ function applyArsHold(id) {                                                   //
   const T = ARS_HOLD[id], C = ARS_HOLD_C;
   for (let i = 0; i < GRIP.length; i++) {
     const e = T && T[i];
-    if (!e) {
+    if (!e || (e.need && !GLBG.m[id + '/' + i])) {
       GRIP[i] = C.grip[i].map(p => p && p.slice()); FPL.GRIPS[i] = C.grips[i]; FPL.CLS_OF[i] = C.cls[i]; GUN_OFF[i].copy(C.off[i]);
       if (C.wp[i]) FPL.WPOSE[i] = C.wp[i]; else delete FPL.WPOSE[i];
       continue;
@@ -5077,7 +5680,7 @@ function applyArsHold(id) {                                                   //
     const R = e.R.h.c, L = e.L ? (e.tpL || e.L.h.c) : null, wR = C.grip[e.ref][e.refL ? 1 : 0], o = C.off[e.ref];
     GRIP[i] = [R.slice(), L ? L.slice() : null];
     GUN_OFF[i].set(o.x + wR[0] - R[0], o.y + wR[1] - R[1], o.z + wR[2] - R[2]);   // the right hand ends up where it is on the Classic gun of the same kind
-    FPL.GRIPS[i] = e.L ? { R: e.R, L: e.L } : { R: e.R };
+    FPL.GRIPS[i] = e.L ? { R: e.R, L: e.L } : { R: e.R }; if (e.sh) FPL.GRIPS[i].sh = e.sh;
     FPL.CLS_OF[i] = e.cls;
     if (e.wp) FPL.WPOSE[i] = e.wp; else delete FPL.WPOSE[i];
   }
@@ -5150,7 +5753,7 @@ async function glbParse(buf) {
     const m = models[hdr.slots[key]]; if (!m) continue;
     GLBG.m[key] = m;
     const [ars, sl] = key.split('/'), A = ARSENALS[ars];
-    if (A && A.tip[+sl]) { A.tip[+sl].set(m.tip[0], m.tip[1], m.tip[2]); if (ARS_ID === ars) GUN_TIP[+sl].set(m.tip[0], m.tip[1], m.tip[2]); }
+    if (A && A.tip[+sl]) { const tp = (ars + '/' + sl) === 'classic/2' ? [0, -0.1536, 0.853] : m.tip; A.tip[+sl].set(tp[0], tp[1], tp[2]); if (ARS_ID === ars) GUN_TIP[+sl].set(tp[0], tp[1], tp[2]); }
   }
 }
 async function loadGuns() {
@@ -5158,7 +5761,7 @@ async function loadGuns() {
     GLBG.state = 'loading';
     const res = await fetch('guns.pack'); if (!res.ok) throw new Error('HTTP ' + res.status);
     await glbParse(await res.arrayBuffer());
-    GLBG.state = 'ready'; glbRefresh();
+    GLBG.state = 'ready'; glbRefresh(); applyArsHold(ARS_ID);
   } catch (e) { GLBG.state = 'failed'; console.warn('guns.pack not loaded - using the built-in gun shapes', e); packWarn('guns.pack'); }
 }
 // ----- extra effects a gun can carry -----
@@ -5808,7 +6411,7 @@ function updateMe(dt) {
       me.flameT -= dt;
       if (me.weapon === 7 && me.sq.gunNode) {
         me.sq.gunNode.localToWorld(muzzle.copy(GUN_TIP[7]));
-        if (fpMode && fpGunPoint(7, GUN_TIP[7].x, GUN_TIP[7].y, GUN_TIP[7].z, muzzleFp)) flameFx(muzzleFp, me.sq.yaw, fpLook(fpA)); else flameFx(muzzle, me.sq.yaw);
+        if (fpMode && fpGunPoint(7, GUN_TIP[7].x, GUN_TIP[7].y, GUN_TIP[7].z, muzzleFp)) flameFx(muzzleFp, me.sq.yaw, fpLook(fpA), 0); else flameFx(muzzle, me.sq.yaw, null, 0);
         if (remote.active && !remote.dead && inFlame(muzzle, me.sq.yaw, tmpV2.set(remote.pos.x, remote.pos.y + CH[remote.char].meta.hit * 0.45, remote.pos.z), CH[remote.char].hr)) { remote.sq.flash = Math.max(remote.sq.flash, 0.5); if (mode === 'bot') botBurn(WEAPONS[7].dps * dt, WEAPONS[7]); }
       }
     }
@@ -5886,7 +6489,7 @@ function updateStatus(dt) {
   if (remote.active && !remote.dead) {
     if (remote.fl && remote.weapon === 7 && remote.sq.gunNode) {
       remote.sq.recoil = Math.max(remote.sq.recoil, 0.3);
-      remote.sq.gunNode.localToWorld(muzzle.copy(GUN_TIP[7])); flameFx(muzzle, remote.yaw);
+      remote.sq.gunNode.localToWorld(muzzle.copy(GUN_TIP[7])); flameFx(muzzle, remote.yaw, null, 1);
       if ((remote.flSfx -= dt) <= 0) { remote.flSfx = 0.14; sfx(WEAPONS[7].sfx, volAt(muzzle) * 0.8); }
       if (!me.dead && inFlame(muzzle, remote.yaw, tmpV2.set(me.pos.x, me.pos.y + CH[me.char].meta.hit * 0.45, me.pos.z), CH[me.char].hr)) {
         if (me.invuln <= 0 && !roundOver) { const fd = WEAPONS[7]; dotDamage(fd.dps * dt, otherRole()); me.burn = Math.max(me.burn, fd.burnT !== undefined ? fd.burnT : 2.2); if (fd.slowT) slowMe(fd.slowT, fd.slowF || 0.5, fd.msg); }
@@ -6467,6 +7070,7 @@ function frameBody() {
   goalAcorn.rotation.y += dt * 0.8; goalAcorn.position.y = goalTop + 2.4 + Math.sin(t * 1.5) * 0.25;
   beam.material.opacity = 0.14 + Math.sin(t * 2) * 0.04;
   waterNormal.offset.set(t * 0.004, t * 0.0025); if (moatNormal) moatNormal.offset.set(t * 0.012, t * 0.008);
+  try { oceanUpdate(t); } catch (e) { OCEAN.ready = false; }
   updateBridges(dt);
   updatePickups(dt, t); updatePowerups(dt, t);
 
@@ -6553,6 +7157,8 @@ frame();
 loadPack();
 loadGuns();
 loadFx();
+loadOcean();
+loadHumans();
 })();
 </script>
 </body>
